@@ -981,6 +981,10 @@ function applyRecover(plan, opts) {
   } else {
     for (const suspect of chosen) {
       if (suspect.kind === 'bundle') {
+        if (isCore(suspect.id)) {
+          warn(`refusing to disable core bundle ${suspect.id}`);
+          continue;
+        }
         if (nextBundles.includes(suspect.id)) {
           nextBundles = nextBundles.filter((bundle) => bundle !== suspect.id);
           removedBundles.push(suspect.id);
