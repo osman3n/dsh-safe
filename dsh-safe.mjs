@@ -31,8 +31,9 @@ import http from 'node:http';
 import readline from 'node:readline/promises';
 import { spawn, spawnSync } from 'node:child_process';
 import { parseArgs } from 'node:util';
+import { pathToFileURL } from 'node:url';
 
-const VERSION = '0.1.0';
+const VERSION = '0.2.0';
 
 const HOME = process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
 const SAFETY_DIR = path.join(HOME, 'safety');
@@ -2363,17 +2364,48 @@ async function main(argv) {
   }
 }
 
-main(process.argv.slice(2)).then(
-  (code) => {
-    process.exitCode = code;
-  },
-  (error) => {
-    if (error instanceof UsageError) {
-      bad(error.message);
-      process.exitCode = 2;
-    } else {
-      bad(error?.stack || String(error));
-      process.exitCode = 1;
-    }
-  },
-);
+export {
+  CORE_BUNDLES,
+  HOME,
+  SAFETY_DIR,
+  SNAPSHOTS_DIR,
+  appRunning,
+  bundlesOf,
+  findSnapshot,
+  humanMs,
+  latestStartupLog,
+  listSnapshots,
+  parseStartupLog,
+  profileRef,
+  readManifest,
+  readOps,
+  readState,
+  saveState,
+  startupLogs,
+  takeSnapshot,
+};
+
+// The CLI still runs when this file is executed directly, but importing it (for
+// example from the in-harness plugin in lib/plugin.js) must not parse argv or
+// touch the terminal.
+const entryArg = process.argv[1];
+const invokedDirectly =
+  typeof entryArg === 'string' &&
+  pathToFileURL(path.resolve(entryArg)).href === import.meta.url;
+
+if (invokedDirectly) {
+  main(process.argv.slice(2)).then(
+    (code) => {
+      process.exitCode = code;
+    },
+    (error) => {
+      if (error instanceof UsageError) {
+        bad(error.message);
+        process.exitCode = 2;
+      } else {
+        bad(error?.stack || String(error));
+        process.exitCode = 1;
+      }
+    },
+  );
+}

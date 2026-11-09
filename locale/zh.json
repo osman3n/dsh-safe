@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "dsh-safe",
+    "description": "检查当前 profile、查看上次启动的诊断信息，并在修改插件前创建快照。随包提供的命令行工具可以恢复无法启动的 profile。"
+  }
+}

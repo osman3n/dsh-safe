@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "dsh-safe",
+    "description": "Inspect the active profile, check the last boot evidence and take snapshots before changing plugins. The bundled CLI recovers a profile that no longer starts."
+  }
+}

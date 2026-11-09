@@ -1,0 +1,13 @@
+# Bundle patch of dsh-safe.
+#
+# Installing the package adds this row to the active profile. It mounts the
+# in-harness half of dsh-safe, which gives the model two read-mostly tools:
+#
+#   dsh_safe_status    profile, bundles, snapshots and last boot evidence
+#   dsh_safe_snapshot  copy package.json + the patch layer before a change
+#
+# The recovery CLI and the local recovery page are separate: they run outside
+# the Harness process and keep working while the app cannot start.
+- insert:
+    - id: dsh-safe
+      name: dsh-safe

@@ -1,16 +1,54 @@
 # dsh-safe
 
-A small out-of-band safety net for DeepSeek Harness plugin development on Windows.
+An out-of-band safety net for DeepSeek Harness plugins, shipped as both a
+command-line tool and an installable bundle.
 
-The problem it solves: while you develop/install a plugin, the Harness can fail to
-open — either a crash dialog loop, or the window stuck on "loading" forever. The
-built-in recovery dialog ("Disable third-party plugins, back up profile patch and
-restart") is all-or-nothing: it removes *every* third-party bundle and detaches the
-whole patch layer. Sometimes you only want to switch off the one plugin you were
-working on.
+The problem: a plugin can stop the Harness from opening. Sometimes the process
+crashes and the crash dialog loops; sometimes the window hangs on "loading"
+forever. The built-in recovery dialog ("Disable third-party plugins, back up the
+profile patch and restart") fires only on a crash, and it is all-or-nothing: it
+removes *every* third-party bundle and detaches the whole patch layer. Usually you
+only want to switch off the one plugin you were working on.
 
-`dsh-safe` runs from a terminal while the app is closed. It edits the profile
-files directly, so it does not depend on the broken Harness booting at all.
+`dsh-safe` runs from a terminal while the app is closed and edits the profile
+files directly, so it does not depend on the broken Harness booting at all. The
+bundle adds two read-mostly tools to a healthy session: inspect the profile and
+boot evidence, and snapshot the profile before a change.
+
+## Install
+
+As a plugin, which adds the two in-harness tools:
+
+```bat
+dsh plugin --profile desktop add github:osman3n/dsh-safe
+```
+
+Restart DeepSeek Harness. The plugin manager lists **dsh-safe**, and the model can
+call `dsh_safe_status` and `dsh_safe_snapshot`. The CLI files ship inside the same
+package, so the recovery commands below keep working.
+
+As a standalone CLI, no install step is required: clone the repo, open a terminal
+in `tools/dsh-safe`, and run `dsh-safe.cmd` (or `node dsh-safe.mjs`). The only
+dependency is Node.js 22+. The recovery CLI targets Windows (it uses `tasklist`,
+`cmd.exe` and the desktop executable); the in-harness tools are plain Node and
+work wherever the Harness runs.
+
+The plugin half is a convenience, not the recovery path: when the Harness cannot
+boot, nothing inside it can run. Recovery always goes through the CLI or the
+recovery page, from outside the app.
+
+## In-harness tools
+
+| Tool | What it does |
+| --- | --- |
+| `dsh_safe_status` | Active profile, selected bundles (and which are local links), recent snapshots, last known-good snapshot, last test boot, last recovery, newest startup-failure log with the plugins that failed or waited for services |
+| `dsh_safe_snapshot` | Copies `package.json`, `cordis.yml` and `cordis.patch.yml` into `$DSH_HOME/safety/snapshots/<id>/`; optional `label` and `note` |
+
+Both tools call the same functions as the CLI, so a snapshot taken by the model is
+the same snapshot `dsh-safe snapshots` lists and `dsh-safe restore` accepts.
+Neither tool changes the plugin selection: disabling and restoring are done from
+the CLI while the app is closed.
+
 
 ## Quick start
 
