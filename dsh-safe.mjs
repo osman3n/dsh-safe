@@ -33,7 +33,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { parseArgs } from 'node:util';
 import { pathToFileURL } from 'node:url';
 
-const VERSION = '0.2.2';
+const VERSION = '0.2.3';
 
 const HOME = process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
 const SAFETY_DIR = path.join(HOME, 'safety');

@@ -49,6 +49,16 @@ the same snapshot `dsh-safe snapshots` lists and `dsh-safe restore` accepts.
 Neither tool changes the plugin selection: disabling and restoring are done from
 the CLI while the app is closed.
 
+### Snapshots on backup
+
+When [git-autobackup](https://github.com/osman3n/git-autobackup) runs a backup
+the user approved (its `Back up now` prompt or the header button), this bundle
+saves a snapshot labelled `auto-backup` **before** the build step. The backup
+build copies `$DSH_HOME/safety/snapshots` into its tree, so that snapshot is part
+of the same pushed backup instead of the next one. Nothing happens if dsh-safe or
+git-autobackup is disabled; the two plugins talk over one Cordis event
+(`git-autobackup/before-run`), with no import between them.
+
 
 ## Quick start
 
