@@ -33,7 +33,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { parseArgs } from 'node:util';
 import { pathToFileURL } from 'node:url';
 
-const VERSION = '0.2.1';
+const VERSION = '0.2.2';
 
 const HOME = process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
 const SAFETY_DIR = path.join(HOME, 'safety');
@@ -62,6 +62,8 @@ Usage:
   dsh-safe enable  [name...]       re-enable plugin(s); no names = interactive picker
   dsh-safe try                     test-boot a copy of this profile in an isolated sandbox
   dsh-safe ui                      open a recovery page in the browser (works while the app is down)
+  dsh-safe watch                   serve the recovery page and open it when Harness crashes
+  dsh-safe watch --install          start the crash watcher hidden at every Windows sign-in
   dsh-safe open                    preflight, auto-fix on failure, then launch the app
   dsh-safe open --ui               preflight, and on failure open the recovery page instead
   dsh-safe recover                 explain what probably broke the last boot
@@ -82,6 +84,8 @@ Options:
   --grace <sec>      try/open: extra watch time after the web server answers (default 5)
   --port <n>         ui: listen port (default: random free port)
   --no-browser       ui: do not open a browser automatically
+  --install          watch: start hidden at every sign-in (Windows)
+  --uninstall        watch: remove the sign-in entry
   --ui               open: on a failed preflight, start the recovery UI instead of auto-fixing
   --keep             keep the trial directory even when the boot succeeds
   --no-fix           open: never modify the profile automatically
@@ -1673,7 +1677,7 @@ function openUrl(url) {
   } catch { /* the URL is still printed */ }
 }
 
-async function startUi(opts, { openBrowser = false, preflight = null } = {}) {
+async function createUiServer(opts, { preflight = null } = {}) {
   const token = crypto.randomBytes(9).toString('hex');
   const ctx = { token, opts, preflight, server: null };
   const server = http.createServer((req, res) => {
@@ -1695,16 +1699,148 @@ async function startUi(opts, { openBrowser = false, preflight = null } = {}) {
   });
 
   const actual = server.address().port;
-  const base = `http://127.0.0.1:${actual}/${token}/`;
+  return { server, token, url: `http://127.0.0.1:${actual}/${token}/` };
+}
+
+async function startUi(opts, { openBrowser = false, preflight = null } = {}) {
+  const { server, url } = await createUiServer(opts, { preflight });
   line('');
-  ok(`recovery UI: ${base}`);
+  ok(`recovery UI: ${url}`);
   info(`profile ${profileRef(opts).name}   app ${appRunning() ? 'is running' : 'is not running'}`);
   if (preflight) info(`preflight: ${preflight.ok ? 'healthy' : 'failed'} (${preflight.reason || 'unknown reason'})`);
   line('Keep this window open while you use the page; Ctrl+C (or the Stop button) ends it.');
-  if (openBrowser) openUrl(base);
+  if (openBrowser) openUrl(url);
 
   await new Promise((resolve) => server.once('close', resolve));
   info('recovery UI stopped');
+  return 0;
+}
+
+/* ------------------------------------------------------------ crash watcher */
+
+const CRASH_DIR = process.env.DSH_SAFE_CRASH_DIR || path.join(APPDATA, '@deepseek-ai', 'dsh-desktop', 'logs');
+const WATCH_LOG = path.join(SAFETY_DIR, 'watch.log');
+const STARTUP_DIR = path.join(APPDATA, 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup');
+const STARTUP_FILE = path.join(STARTUP_DIR, 'dsh-safe-watch.vbs');
+
+function watchEntries() {
+  const entries = [];
+  for (const dir of [CRASH_DIR, LOGS_DIR]) {
+    let names = [];
+    try { names = fs.readdirSync(dir); } catch { continue; }
+    for (const name of names) {
+      if (!name.startsWith('crash-') && !name.startsWith('startup-')) continue;
+      if (!name.endsWith('.log')) continue;
+      entries.push({ name, file: path.join(dir, name) });
+    }
+  }
+  return entries;
+}
+
+function failureOf(entry) {
+  let text = '';
+  try { text = fs.readFileSync(entry.file, 'utf8').slice(0, 20000); } catch { return null; }
+  const lines = text.split(/\r?\n/);
+  if (entry.name.startsWith('crash-')) {
+    const hit = lines.find((row) => /error|fatal|did not activate|failed/i.test(row));
+    return { kind: 'crash', line: (hit || lines[0] || '').trim() };
+  }
+  if (!/startup failed/i.test(text)) return null;
+  const hit = lines.find((row) => /StartupError|startup failed/i.test(row));
+  return { kind: 'startup', line: (hit || '').trim() };
+}
+
+function installWatch() {
+  if (process.platform !== 'win32') {
+    bad('watch --install is only available on Windows.');
+    return 1;
+  }
+  const script = path.resolve(process.argv[1] || '.');
+  const command = `"${process.execPath}" "${script}" watch`;
+  const vbs = [
+    "' dsh-safe: start the crash watcher hidden at sign-in.",
+    "' Delete this file (or run: dsh-safe watch --uninstall) to stop it.",
+    'Set shell = CreateObject("WScript.Shell")',
+    `shell.Run "${command.replace(/"/g, '""')}", 0, False`,
+    '',
+  ].join('\r\n');
+  fs.mkdirSync(STARTUP_DIR, { recursive: true });
+  fs.writeFileSync(STARTUP_FILE, vbs, 'utf8');
+  ok(`installed: ${STARTUP_FILE}`);
+  info('The watcher starts hidden at your next sign-in.');
+  info('remove it with: dsh-safe watch --uninstall');
+  return 0;
+}
+
+function uninstallWatch() {
+  try {
+    fs.rmSync(STARTUP_FILE, { force: true });
+    ok(`removed: ${STARTUP_FILE}`);
+    return 0;
+  } catch (error) {
+    bad(`could not remove ${STARTUP_FILE}: ${error.message}`);
+    return 1;
+  }
+}
+
+async function cmdWatch(opts) {
+  if (opts.install) return installWatch();
+  if (opts.uninstall) return uninstallWatch();
+
+  const { server, url } = await createUiServer(opts, {});
+  ok(`recovery UI: ${url}`);
+  info(`profile ${profileRef(opts).name}`);
+  info(`watching ${CRASH_DIR}`);
+  info(`      and ${LOGS_DIR}`);
+  line('Crash logs open the recovery page automatically. Ctrl+C stops the watcher.');
+  line('Start it hidden at every sign-in with: dsh-safe watch --install');
+  try {
+    fs.mkdirSync(SAFETY_DIR, { recursive: true });
+    fs.appendFileSync(WATCH_LOG, `${new Date().toISOString()}\tstarted\tpid=${process.pid}\n`);
+  } catch { /* the log is optional */ }
+
+  const seen = new Set(watchEntries().map((entry) => entry.file));
+  const every = Math.max(1000, Number.parseInt(process.env.DSH_SAFE_WATCH_INTERVAL ?? '3000', 10) || 3000);
+  let lastOpen = 0;
+
+  const tick = () => {
+    for (const entry of watchEntries()) {
+      if (seen.has(entry.file)) continue;
+      seen.add(entry.file);
+      const failure = failureOf(entry);
+      if (!failure) continue;
+      const stamp = new Date().toISOString();
+      try {
+        fs.mkdirSync(SAFETY_DIR, { recursive: true });
+        fs.appendFileSync(WATCH_LOG, `${stamp}\t${failure.kind}\t${entry.file}\t${failure.line}\n`);
+      } catch { /* the page still opens */ }
+      warn(`Harness failure detected (${failure.kind}): ${path.basename(entry.file)}`);
+      if (failure.line) line(`  ${failure.line}`);
+      const now = Date.now();
+      if (process.env.DSH_SAFE_WATCH_OPEN !== '0' && now - lastOpen > 5000) {
+        lastOpen = now;
+        openUrl(url);
+        info('opened the recovery page. If Harness is still up, quit it, then disable the plugin.');
+      }
+    }
+  };
+
+  tick();
+  const timer = setInterval(tick, every);
+  await new Promise((resolve) => {
+    const stop = () => {
+      clearInterval(timer);
+      try { server.close(); } catch { /* already closed */ }
+      resolve();
+    };
+    process.once('SIGINT', stop);
+    process.once('SIGTERM', stop);
+    server.once('close', () => {
+      clearInterval(timer);
+      resolve();
+    });
+  });
+  info('watcher stopped');
   return 0;
 }
 
@@ -2201,6 +2337,21 @@ window.__BOOT_STATE__ = __BOOT__;
 
   if (state) renderAll();
   refresh();
+
+  // While the app still holds the profile, poll until it exits so the page
+  // unlocks by itself after the crash dialog closes.
+  setInterval(function () {
+    if (!state || !state.appRunning) return;
+    fetch('api/state', { cache: 'no-store' })
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        if (data && data.ok && data.state && data.state.appRunning === false) {
+          state = data.state;
+          renderAll();
+        }
+      })
+      .catch(function () { /* keep the current view */ });
+  }, 3000);
 })();
 </script>
 </body>
@@ -2230,6 +2381,8 @@ const OPTIONS = {
   port: { type: 'string' },
   'no-browser': { type: 'boolean' },
   ui: { type: 'boolean' },
+  install: { type: 'boolean' },
+  uninstall: { type: 'boolean' },
   keep: { type: 'boolean' },
   fix: { type: 'boolean' },
   'no-fix': { type: 'boolean' },
@@ -2294,6 +2447,8 @@ async function main(argv) {
       return cmdTry(opts);
     case 'ui':
       return startUi(opts, { openBrowser: !opts['no-browser'] });
+    case 'watch':
+      return cmdWatch(opts);
     case 'open': {
       if (opts.ui) {
         // The recovery shortcut: show the page immediately, even while the app

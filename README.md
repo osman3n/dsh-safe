@@ -80,6 +80,8 @@ dsh-safe.cmd snapshot -l before-thing-x
 | `enable [name...]` | Adds installed bundles back; no names = interactive picker |
 | `try` | Clone this profile under a temporary name, boot it in an isolated `DSH_HOME`, wait for the web server, probe it, then delete the clone |
 | `ui` | Start a local recovery page: crash evidence, plugin checkboxes, snapshots, "test boot", "launch" |
+| `watch` | Serves the recovery page and opens it when Harness writes a new crash or startup-failure log |
+| `watch --install` | Starts that watcher hidden at every Windows sign-in (`--uninstall` removes it) |
 | `recover` | Reads the newest startup log and explains which plugin failed and why |
 | `recover --pick --apply` | Shows suspect plugins, lets you pick which ones to disable, applies it |
 | `recover --apply` | Disables the newest safe suspect |
@@ -161,6 +163,32 @@ before touching anything. Use the page's **Test boot** button for a sandbox
 preflight, fix what is broken, then click **Launch Harness**; the page shuts
 itself down. `dsh-safe.cmd open` (without `--ui`) keeps the older
 preflight-then-launch behaviour.
+
+## Automatically on crash
+
+`dsh-safe watch` is a small background guard. It serves the recovery page and
+watches two places for new failure evidence:
+
+- `%APPDATA%\@deepseek-ai\dsh-desktop\logs\crash-*.log` — written by the desktop
+  app when a boot or renderer fails;
+- `%USERPROFILE%\.dsh\logs\startup-*.log` — written when the host startup fails.
+
+When a new failure appears it appends the error line to
+`~/.dsh/safety/watch.log` and opens the recovery page in your browser. If the
+app is still showing its own crash dialog, the page reports "Harness is
+running"; it unlocks by itself once you quit the app, because it keeps polling
+while the app is up.
+
+Install it once so it starts hidden at every sign-in (Windows):
+
+```bat
+dsh-safe watch --install
+```
+
+That writes `dsh-safe-watch.vbs` into your Startup folder:
+`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\`. Remove it with
+`dsh-safe watch --uninstall`, or delete that file. The watcher remembers the
+full path of `dsh-safe.mjs`, so re-run `--install` if you move this folder.
 
 ## How `try` decides the boot is "healthy"
 
