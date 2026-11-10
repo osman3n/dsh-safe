@@ -51,7 +51,7 @@ the CLI while the app is closed.
 
 ### Snapshots on backup
 
-When [git-autobackup](https://github.com/osman3n/git-autobackup) runs a backup
+When the `git-autobackup` bundle (a local plugin in this setup) runs a backup
 the user approved (its `Back up now` prompt or the header button), this bundle
 saves a snapshot labelled `auto-backup` **before** the build step. The backup
 build copies `$DSH_HOME/safety/snapshots` into its tree, so that snapshot is part
