@@ -154,10 +154,13 @@ The server binds to `127.0.0.1` only and every URL carries a random token, so
 another local page cannot drive it. **Stop this UI** (or Ctrl+C in the terminal)
 ends the server.
 
-**One-click safe reopen:** `dsh-safe-open.cmd` runs `open --ui`. It test-boots the
-profile first; if the boot is healthy it launches Harness, and if it fails it
-leaves the recovery page open with the preflight result already displayed. Fix
-the plugin there, click **Launch Harness**, and the page shuts itself down.
+**One-click safe reopen:** double-click the *DeepSeek Harness (Safe)* desktop
+shortcut (or run `dsh-safe-open.cmd`). It opens the recovery page immediately,
+even while Harness is running, so you can inspect the profile and choose plugins
+before touching anything. Use the page's **Test boot** button for a sandbox
+preflight, fix what is broken, then click **Launch Harness**; the page shuts
+itself down. `dsh-safe.cmd open` (without `--ui`) keeps the older
+preflight-then-launch behaviour.
 
 ## How `try` decides the boot is "healthy"
 
@@ -208,8 +211,9 @@ running" check the UI uses to block mutations; for tests).
 
 - `dsh-safe.cmd` — the CLI.
 - `dsh-safe-ui.cmd` — `dsh-safe ui`, opens the recovery page.
-- `dsh-safe-open.cmd` — `dsh-safe open --ui`: test the profile, launch if healthy,
-  otherwise open the recovery page.
+- `dsh-safe-open.cmd` — `dsh-safe open --ui`: opens the recovery page directly
+  (the desktop shortcut points here). `dsh-safe.cmd open` still test-boots the
+  profile and launches Harness when it is healthy.
 
 All work from any directory; they resolve `dsh-safe.mjs` relative to themselves.
 If you want to type `dsh-safe` from anywhere, add the folder that contains

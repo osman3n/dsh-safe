@@ -33,7 +33,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { parseArgs } from 'node:util';
 import { pathToFileURL } from 'node:url';
 
-const VERSION = '0.2.0';
+const VERSION = '0.2.1';
 
 const HOME = process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
 const SAFETY_DIR = path.join(HOME, 'safety');
@@ -2295,6 +2295,12 @@ async function main(argv) {
     case 'ui':
       return startUi(opts, { openBrowser: !opts['no-browser'] });
     case 'open': {
+      if (opts.ui) {
+        // The recovery shortcut: show the page immediately, even while the app
+        // is running (mutating actions stay blocked there). Preflight is the
+        // page's "Test boot" button, so opening the page stays fast.
+        return startUi(opts, { openBrowser: true });
+      }
       if (appRunning()) {
         info('DeepSeek Harness is already running; not launching another instance.');
         return 0;
