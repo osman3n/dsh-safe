@@ -33,7 +33,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { parseArgs } from 'node:util';
 import { pathToFileURL } from 'node:url';
 
-const VERSION = '0.2.3';
+const VERSION = '0.2.4';
 
 const HOME = process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
 const SAFETY_DIR = path.join(HOME, 'safety');
@@ -327,6 +327,49 @@ function findSnapshot(id) {
   if (!snapshots.length) return null;
   if (!id || id === 'latest') return snapshots[0];
   return snapshots.find((s) => s.id === id) || snapshots.find((s) => s.id.startsWith(id)) || null;
+}
+
+/* --------------------------------------------------- automatic snapshots */
+
+// Images taken by the automatic policy (bundle or CLI, no user action). They
+// share one rolling pool; daily `stable-*` images are deliberately outside it.
+const AUTO_LABELS = Object.freeze(['plugin-change', 'dsh-update', 'auto-backup']);
+const AUTO_KEEP = 10;
+
+function pruneAutoSnapshots(keep = AUTO_KEEP) {
+  const rolling = listSnapshots().filter((snapshot) => AUTO_LABELS.includes(snapshot?.label));
+  const removed = [];
+  for (const stale of rolling.slice(Math.max(0, keep))) {
+    const id = String(stale.id || '');
+    // Only ever delete a direct child of the snapshots directory.
+    if (!/^[0-9A-Za-z][0-9A-Za-z._-]*$/.test(id)) continue;
+    const dir = path.join(SNAPSHOTS_DIR, id);
+    if (path.dirname(dir) !== SNAPSHOTS_DIR) continue;
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+      removed.push(id);
+    } catch {
+      /* a locked directory is retried on the next snapshot */
+    }
+  }
+  return removed;
+}
+
+function takeAutoSnapshot(profile, label, note, keep = AUTO_KEEP) {
+  const { meta, dir } = takeSnapshot(profile, label, note);
+  const removed = pruneAutoSnapshots(keep);
+  return { meta, dir, removed };
+}
+
+function dailyStableLabel(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `stable-${year}-${month}-${day}`;
+}
+
+function hasSnapshotLabel(label) {
+  return listSnapshots().some((snapshot) => snapshot?.label === label);
 }
 
 /* ------------------------------------------------------------------ evidence */
@@ -2530,23 +2573,29 @@ async function main(argv) {
 }
 
 export {
+  AUTO_KEEP,
+  AUTO_LABELS,
   CORE_BUNDLES,
   HOME,
   SAFETY_DIR,
   SNAPSHOTS_DIR,
   appRunning,
   bundlesOf,
+  dailyStableLabel,
   findSnapshot,
+  hasSnapshotLabel,
   humanMs,
   latestStartupLog,
   listSnapshots,
   parseStartupLog,
   profileRef,
+  pruneAutoSnapshots,
   readManifest,
   readOps,
   readState,
   saveState,
   startupLogs,
+  takeAutoSnapshot,
   takeSnapshot,
 };
 

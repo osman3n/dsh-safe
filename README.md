@@ -49,15 +49,33 @@ the same snapshot `dsh-safe snapshots` lists and `dsh-safe restore` accepts.
 Neither tool changes the plugin selection: disabling and restoring are done from
 the CLI while the app is closed.
 
-### Snapshots on backup
+### Automatic images
 
-When the `git-autobackup` bundle (a local plugin in this setup) runs a backup
-the user approved (its `Back up now` prompt or the header button), this bundle
-saves a snapshot labelled `auto-backup` **before** the build step. The backup
-build copies `$DSH_HOME/safety/snapshots` into its tree, so that snapshot is part
-of the same pushed backup instead of the next one. Nothing happens if dsh-safe or
-git-autobackup is disabled; the two plugins talk over one Cordis event
-(`git-autobackup/before-run`), with no import between them.
+The bundle keeps a short history of the profile without asking. Nothing is
+prompted or printed; a small log sits at `$DSH_HOME/safety/auto.log`.
+
+| When | Label |
+| --- | --- |
+| a plugin install, enable, remove or update settles successfully (applied, or restart required) | `plugin-change` |
+| the Harness version changes and the new version stays up for 20 s | `dsh-update` |
+| just before an approved git-autobackup run | `auto-backup` |
+
+A plugin change is imaged only after the operation has **settled with no error**
+and the app has been quiet for 5 s, so writing or fixing a plugin does not fill
+the history with half-finished states. The `auto-backup` image is skipped when a
+`plugin-change` or `dsh-update` image was taken in the last five minutes, so one
+change does not use two slots.
+
+The last **10** automatic images are kept; the oldest is deleted when a new one
+arrives. A daily **stable** image (`stable-YYYY-MM-DD`) is taken at the start of
+the day — at the first boot, or at 00:05 if Harness stays open — and does not
+count against the 10. Stable images are not pruned: the folder gains one small
+folder per day (~60 KB each), and you can delete old ones under
+`$DSH_HOME/safety/snapshots` whenever you like.
+
+`dsh-safe snapshots` lists them all; `dsh-safe restore <id>` puts one back. The
+backup build copies the whole snapshots folder, so the images also travel with
+your git-autobackup history.
 
 
 ## Quick start
