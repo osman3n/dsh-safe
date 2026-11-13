@@ -1,6 +1,6 @@
 {
   "name": "dsh-safe",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "description": "Recover a DeepSeek Harness profile that no longer boots: test-boot a copy, disable the plugin that broke it, and restore from a snapshot. Ships as both a CLI and an in-harness plugin.",
   "type": "module",
   "license": "MIT",

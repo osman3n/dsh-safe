@@ -31,9 +31,9 @@ import http from 'node:http';
 import readline from 'node:readline/promises';
 import { spawn, spawnSync } from 'node:child_process';
 import { parseArgs } from 'node:util';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const VERSION = '0.2.8';
+const VERSION = '0.2.9';
 
 const HOME = process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
 const SAFETY_DIR = path.join(HOME, 'safety');
@@ -50,6 +50,14 @@ const LOCALAPPDATA = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppDat
 const OPS_FILE = path.join(APPDATA, '@deepseek-ai', 'dsh-desktop', 'plugin-operations', 'operations.jsonl');
 const DEFAULT_DESKTOP_EXE = path.join(LOCALAPPDATA, 'Programs', 'DeepSeek Harness', 'DeepSeek Harness.exe');
 
+/* Windows will not draw a shortcut icon from inside this project folder: the
+ * workspace carries a restrictive ACL, and the shell silently falls back to a
+ * blank page. So the icon is published to a normal per-user directory and the
+ * shortcut points there; publishIcon() refreshes the copy when the file moves. */
+const PACKAGE_DIR = path.dirname(fileURLToPath(import.meta.url));
+const ICON_FILE = path.join(PACKAGE_DIR, 'app.ico');
+const SHELL_ICON = path.join(LOCALAPPDATA, 'dsh-safe', 'app.ico');
+
 const HELP = `dsh-safe ${VERSION} - keep a broken Harness plugin from locking you out
 
 Usage:
@@ -62,6 +70,7 @@ Usage:
   dsh-safe enable  [name...]       re-enable plugin(s); no names = interactive picker
   dsh-safe try                     test-boot a copy of this profile in an isolated sandbox
   dsh-safe ui                      open the recovery page in its own window (works while the app is down)
+  dsh-safe icon                    publish app.ico where Windows can draw it, print the path
   dsh-safe watch                   serve the recovery page and open it when Harness crashes
   dsh-safe watch --install          start the crash watcher hidden at every Windows sign-in
   dsh-safe open                    preflight, auto-fix on failure, then launch the app
@@ -1749,10 +1758,29 @@ function appBrowser() {
   return null;
 }
 
+/* Copies app.ico next to the user's AppData so the shell and the desktop
+ * shortcut can read it; returns the published path, or null when the package
+ * has no icon (a plain source checkout always does). */
+function publishIcon() {
+  try {
+    if (!fs.existsSync(ICON_FILE)) return null;
+    fs.mkdirSync(path.dirname(SHELL_ICON), { recursive: true });
+    const source = fs.statSync(ICON_FILE);
+    const target = fs.existsSync(SHELL_ICON) ? fs.statSync(SHELL_ICON) : null;
+    if (!target || target.size !== source.size || target.mtimeMs < source.mtimeMs) {
+      fs.copyFileSync(ICON_FILE, SHELL_ICON);
+    }
+    return SHELL_ICON;
+  } catch {
+    return null;
+  }
+}
+
 /* Opens the recovery page in a chromeless window of the system browser: a
  * normal title bar, a taskbar entry, no address bar and no tab strip. Falls
  * back to a normal browser tab when no Chromium build is installed. */
 function openAppWindow(url, { width = 1180, height = 860 } = {}) {
+  publishIcon();
   const browser = appBrowser();
   if (!browser) {
     openUrl(url);
@@ -1912,6 +1940,7 @@ async function cmdWatch(opts) {
   if (opts.install) return installWatch();
   if (opts.uninstall) return uninstallWatch();
 
+  publishIcon();
   const { server, url } = await createUiServer(opts, {});
   ok(`recovery UI: ${url}`);
   info(`profile ${profileRef(opts).name}`);
@@ -3815,6 +3844,15 @@ async function main(argv) {
       });
     case 'watch':
       return cmdWatch(opts);
+    case 'icon': {
+      const published = publishIcon();
+      if (!published) {
+        bad('no app.ico next to dsh-safe.mjs');
+        return 1;
+      }
+      ok(published);
+      return 0;
+    }
     case 'open': {
       if (opts.ui) {
         // The recovery shortcut: show the page immediately, even while the app

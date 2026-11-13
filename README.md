@@ -110,6 +110,7 @@ dsh-safe.cmd snapshot -l before-thing-x
 | `ui` | Start a local recovery page (light theme): crash evidence, one on/off switch per plugin, snapshots, "test boot", "launch" |
 | `watch` | Serves the recovery page and opens it when Harness writes a new crash or startup-failure log |
 | `watch --install` | Starts that watcher hidden at every Windows sign-in (`--uninstall` removes it) |
+| `icon` | Copies `app.ico` to `%LOCALAPPDATA%\dsh-safe\app.ico` where the shell can draw it, and prints the path |
 | `recover` | Reads the newest startup log and explains which plugin failed and why |
 | `recover --pick --apply` | Shows suspect plugins, lets you pick which ones to disable, applies it |
 | `recover --apply` | Disables the newest safe suspect |
@@ -169,6 +170,13 @@ The window, its taskbar button and the desktop shortcut use `app.ico`: a white
 shield with a blue rim and **SAFE** in blue. At 16–32 px the same shield carries
 a check mark instead, because four letters cannot be read that small — Windows
 picks the nearest size on its own.
+
+Windows will not draw a shortcut icon straight out of this folder: the project
+carries a restrictive ACL and the shell silently falls back to a blank page. So
+`dsh-safe icon` copies `app.ico` to `%LOCALAPPDATA%\dsh-safe\app.ico`, the window
+and watcher refresh that copy when they start, and the shortcut points there
+(`%LOCALAPPDATA%\dsh-safe\app.ico,0`). Run `dsh-safe icon` after moving the
+package if the taskbar icon ever goes blank.
 
 The page opens with a **verdict band**: one sentence naming the failure, a primary
 **Disable `<plugin>`** button, **Test boot**, and a note that a snapshot is taken
