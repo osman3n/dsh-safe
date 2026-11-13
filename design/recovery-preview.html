@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="dark">
+<meta name="color-scheme" content="light">
 <title>Harness recovery</title>
 <!--
   PREVIEW BUILD of the dsh-safe recovery page.
@@ -28,54 +28,52 @@
    ===================================================================== */
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 
-  /* surfaces -- a dark instrument, one tone step per layer, hairlines do
-     the separating work so nothing needs a shadow */
-  --bg:        #0a0c0f;
-  --panel:     #0f1216;
-  --panel-2:   #0c0f13;   /* panel footer bands */
-  --well:      #141920;   /* inset: quotes, log, ids */
-  --line:      #1c222a;
-  --line-2:    #2b333d;   /* interactive borders */
-  --line-3:    #3b4552;   /* hover borders */
+  /* surfaces -- a paper instrument: white panels on a soft gray page,
+     hairlines and one soft shadow do the separating work */
+  --bg:        #f4f6f9;
+  --panel:     #ffffff;
+  --panel-2:   #fafbfc;   /* panel footer bands */
+  --well:      #f1f4f8;   /* inset: quotes, log, ids */
+  --line:      #e3e7ee;
+  --line-2:    #cfd6e1;   /* interactive borders */
+  --line-3:    #b2bccb;   /* hover borders */
 
-  /* text -- three tiers, all >= 4.5:1 on --panel */
-  /* Text ladder, measured against #0f1216 / #141920 so every rung clears
-     WCAG AA 4.5:1 on the darkest and the lightest ground:
-     17.2 | 11.6 | 7.4 | 5.4 */
-  --ink:       #f2f5f8;
-  --ink-2:     #c3ccd6;
-  --ink-3:     #9aa3ae;
-  --ink-4:     #828b96;
+  /* text -- four rungs, each measured >= 4.5:1 on white and on --well */
+  --ink:       #0f1720;   /* 17.9 */
+  --ink-2:     #33404f;   /* 10.0 */
+  --ink-3:     #55636f;   /*  6.2 */
+  --ink-4:     #68737f;   /*  4.9 */
 
-  /* status -- hue on its own dark tint, nothing else is coloured */
-  --bad:       #ff7b72;
-  --bad-ink:   #ffb3ad;
-  --bad-bg:    #231315;
-  --bad-line:  #46232a;
-  --warn:      #e9b64d;
-  --warn-ink:  #f0c877;
-  --warn-bg:   #211b0e;
-  --warn-line: #3f3214;
-  --good:      #4ad295;
-  --good-ink:  #7ee3b7;
-  --good-bg:   #0e231b;
-  --good-line: #1d4436;
+  /* status -- ink on a pale tint, nothing else is coloured */
+  --bad:       #c0392b;
+  --bad-ink:   #a32b1e;
+  --bad-bg:    #fdf0ee;
+  --bad-line:  #f2c9c3;
+  --warn:      #9a6400;
+  --warn-ink:  #7d5200;
+  --warn-bg:   #fdf6e7;
+  --warn-line: #ecd6a8;
+  --good:      #17804f;
+  --good-ink:  #106b41;
+  --good-bg:   #eef8f2;
+  --good-line: #c3e5d2;
 
   /* the product's own blue, borrowed from icon.svg -- focus + selection only */
-  --focus:     #6ea8fe;
-  --sel:       #2f81f7;
+  --focus:     #1f6feb;
+  --sel:       #1f6feb;
 
   /* radii: panel / control / chip */
   --r-panel: 8px;
-  --r-ctl:   6px;
-  --r-chip:  4px;
+  --r-ctl: 6px;
+  --r-chip: 4px;
 
   --sans: ui-sans-serif, "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, "Cascadia Mono", "Cascadia Code", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 
   --bar-h: 56px;
+  --shadow: 0 1px 2px rgba(15, 23, 32, 0.05);
 }
 
 * { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
@@ -161,22 +159,20 @@ body {
   font: 500 13px/1 var(--sans); white-space: nowrap; cursor: pointer;
   transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, transform 80ms ease;
 }
-.btn:hover:not(:disabled) { background: #171d25; border-color: var(--line-3); }
-.btn:active:not(:disabled) { background: #1b222b; transform: translateY(1px); }
+.btn:hover:not(:disabled) { background: var(--well); border-color: var(--line-3); }
+.btn:active:not(:disabled) { background: var(--line); transform: translateY(1px); }
 .btn:disabled { color: var(--ink-4); border-color: var(--line); cursor: not-allowed; }
 
 .btn--solid {
-  background: #e9eef4; border-color: #e9eef4; color: #0a0d11; font-weight: 600;
+  background: var(--ink); border-color: var(--ink); color: #ffffff; font-weight: 600;
 }
-.btn--solid:hover:not(:disabled) { background: #ffffff; border-color: #ffffff; }
-.btn--solid:active:not(:disabled) { background: #d5dde6; border-color: #d5dde6; }
+.btn--solid:hover:not(:disabled) { background: #1d2836; border-color: #1d2836; }
+.btn--solid:active:not(:disabled) { background: #2b3746; border-color: #2b3746; }
 .btn--solid:disabled {
   background: transparent; border-color: var(--line-2); color: var(--ink-4); font-weight: 500;
 }
 
 .btn--xs { height: 26px; padding: 0 9px; font-size: 12px; }
-.btn--bulk { min-width: 172px; }
-.btn--bulk:not(:disabled):hover { border-color: var(--bad-line); color: var(--bad-ink); background: #1a1214; }
 
 .linkbtn {
   border: 0; background: none;
@@ -197,7 +193,7 @@ body {
   font: 500 13px/1 var(--sans); color: var(--ink);
 }
 .menu > summary::-webkit-details-marker { display: none; }
-.menu[open] > summary { background: #171d25; border-color: var(--line-3); }
+.menu[open] > summary { background: var(--well); border-color: var(--line-3); }
 .menu-panel {
   position: absolute; right: 0; top: 40px; z-index: 40;
   display: grid; gap: 6px; padding: 8px; min-width: 190px;
@@ -220,6 +216,7 @@ main {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-panel);
+  box-shadow: var(--shadow);
 }
 
 .status {
@@ -255,7 +252,7 @@ main {
 }
 .verdict-title .qid {
   font-family: var(--mono); font-size: 0.86em; font-weight: 500;
-  letter-spacing: -0.01em; color: #ffffff; white-space: nowrap;
+  letter-spacing: -0.01em; color: var(--ink); white-space: nowrap;
 }
 
 .verdict-lede {
@@ -280,6 +277,7 @@ main {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-panel);
+  box-shadow: var(--shadow);
   min-width: 0;
 }
 
@@ -309,7 +307,7 @@ main {
 
 /* Loading: the final layout, drawn flat. No shimmer, no spinner. */
 .skl { display: grid; gap: 10px; padding: 16px 20px 20px; }
-.skl-bar { display: block; height: 11px; border-radius: 3px; background: #171e26; }
+.skl-bar { display: block; height: 11px; border-radius: 3px; background: var(--line); }
 .skl--rows { display: block; padding: 0; }
 .skl-prow {
   display: flex; align-items: center; height: 44px; padding: 0 20px;
@@ -359,7 +357,7 @@ main {
   border-left: 2px solid var(--bad);
   border-radius: 0 var(--r-ctl) var(--r-ctl) 0;
   font-family: var(--mono); font-size: 11.5px; line-height: 1.5;
-  color: #cdd5de;
+  color: var(--ink-2);
   overflow-wrap: anywhere;
   cursor: default;
 }
@@ -394,7 +392,7 @@ main {
 }
 .chip--bad { color: var(--bad-ink); border-color: var(--bad-line); background: var(--bad-bg); }
 .chip--mute { color: var(--ink-4); }
-.chip--warn { color: var(--warn); border-color: #3d3520; background: #1d1a10; }
+.chip--warn { color: var(--warn-ink); border-color: var(--warn-line); background: var(--warn-bg); }
 
 .wrow {
   display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 6px; min-width: 0;
@@ -437,7 +435,7 @@ main {
 }
 .filter input::placeholder { color: var(--ink-4); }
 .filter input:hover { border-color: var(--line-3); }
-.filter input:focus { border-color: var(--focus); outline: none; box-shadow: 0 0 0 3px rgba(110, 168, 254, 0.16); }
+.filter input:focus { border-color: var(--focus); outline: none; box-shadow: 0 0 0 3px rgba(31, 111, 235, 0.18); }
 .filter input::-webkit-search-cancel-button { display: none; }
 .filter-x {
   position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
@@ -450,7 +448,7 @@ main {
 /* Whole rows only: one sticky group head (33px) plus eight 44px rows. A round
    400px cut showed a 15px sliver of the ninth row above the footer, which read
    as a rendering fault rather than as "the list continues". */
-.plist { max-height: 385px; overflow: auto; overscroll-behavior: contain; }
+.plist { max-height: min(62vh, 660px); overflow: auto; overscroll-behavior: contain; }
 
 .pgroup {
   position: sticky; top: 0; z-index: 1;
@@ -462,38 +460,37 @@ main {
 .pgroup span:last-child { font-weight: 400; color: var(--ink-4); }
 
 .prow {
-  display: grid; grid-template-columns: 36px minmax(0, 1fr) 84px;
-  align-items: center; gap: 6px;
-  height: 44px; padding: 0 20px 0 12px;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center; gap: 12px;
+  height: 48px; padding: 0 20px;
   border-bottom: 1px solid var(--line);
   transition: background-color 100ms ease;
 }
 .prow:last-child { border-bottom: 0; }
-.prow:hover { background: #12171e; }
+.prow:hover { background: var(--well); }
 /* keyboard users get the same row cue as the pointer */
-.prow:focus-within { background: #12171e; }
+.prow:focus-within { background: var(--well); }
 
-/* position: relative keeps the visually-hidden .sr label inside the clipped
-   list box; without it the label anchors to the page and stretches the
-   document scroll height by its own offset. */
-.phit { position: relative; display: flex; align-items: center; justify-content: center; height: 44px; cursor: pointer; }
-
-.cbx {
-  appearance: none; -webkit-appearance: none;
-  width: 16px; height: 16px; margin: 0; position: relative;
-  border: 1px solid var(--line-3); border-radius: var(--r-chip);
-  background: var(--bg); cursor: pointer;
-  transition: background-color 120ms ease, border-color 120ms ease;
+/* One switch per row. The knob position carries the state without relying on
+   colour, the track darkens when on, and the accessible name says which
+   plugin the switch belongs to. */
+.sw {
+  position: relative; flex: none;
+  width: 38px; height: 22px; padding: 0;
+  border: 1px solid var(--line-3); border-radius: 999px;
+  background: var(--panel); cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease;
 }
-.cbx:hover { border-color: #4d5a6a; }
-.cbx:checked { background: var(--sel); border-color: var(--sel); }
-.cbx:checked::after {
-  content: ""; position: absolute; left: 4.5px; top: 1.5px;
-  width: 4px; height: 8px; border: solid #fff; border-width: 0 1.7px 1.7px 0;
-  transform: rotate(40deg);
+.sw::after {
+  content: ""; position: absolute; top: 3px; left: 3px;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--ink-4);
+  transition: transform 140ms ease, background-color 140ms ease;
 }
-.cbx:disabled { opacity: 0.35; cursor: not-allowed; }
-.cbx[aria-disabled="true"] { opacity: 0.35; }
+.sw:hover:not(:disabled) { border-color: var(--ink-3); }
+.sw[aria-checked="true"] { background: var(--ink); border-color: var(--ink); }
+.sw[aria-checked="true"]::after { transform: translateX(16px); background: #ffffff; }
+.sw:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .pmain { display: grid; grid-template-columns: minmax(0, 1fr) 176px; align-items: center; gap: 10px; min-width: 0; }
 .pname {
@@ -522,9 +519,9 @@ main {
 /* Slim scrollbars keep the "there is more below" cue without a bright gutter. */
 .plist::-webkit-scrollbar, .rlist::-webkit-scrollbar, #log::-webkit-scrollbar { width: 10px; height: 10px; }
 .plist::-webkit-scrollbar-thumb, .rlist::-webkit-scrollbar-thumb, #log::-webkit-scrollbar-thumb {
-  background: #2b333d; border: 3px solid transparent; background-clip: content-box; border-radius: 6px;
+  background: var(--line-2); border: 3px solid transparent; background-clip: content-box; border-radius: 6px;
 }
-.plist::-webkit-scrollbar-thumb:hover, .rlist::-webkit-scrollbar-thumb:hover, #log::-webkit-scrollbar-thumb:hover { background: #3b4552; background-clip: content-box; }
+.plist::-webkit-scrollbar-thumb:hover, .rlist::-webkit-scrollbar-thumb:hover, #log::-webkit-scrollbar-thumb:hover { background: var(--line-3); background-clip: content-box; }
 .plist::-webkit-scrollbar-track, .rlist::-webkit-scrollbar-track, #log::-webkit-scrollbar-track { background: transparent; }
 
 .rrow {
@@ -597,8 +594,8 @@ main {
   display: none; margin: 0; padding: 12px 20px 14px;
   max-height: 220px; overflow: auto; max-width: 1200px; margin-inline: auto;
   border-top: 1px solid var(--line);
-  background: #080a0d;
-  font: 12px/1.55 var(--mono); color: #c5cdd6;
+  background: var(--well);
+  font: 12px/1.55 var(--mono); color: var(--ink-2);
   white-space: pre-wrap; overflow-wrap: anywhere;
 }
 .dock[data-open="1"] #log { display: block; }
@@ -618,7 +615,7 @@ main {
 /* ========================================================== feedback == */
 
 body[data-busy="1"] [data-act]:not(.dock-toggle) { pointer-events: none; opacity: 0.6; }
-body[data-busy="1"] .cbx { pointer-events: none; }
+body[data-busy="1"] .sw { pointer-events: none; }
 
 .net {
   display: flex; align-items: center; gap: 12px;
@@ -628,7 +625,7 @@ body[data-busy="1"] .cbx { pointer-events: none; }
 }
 .net[hidden] { display: none; }
 
-.sk { display: block; height: 11px; border-radius: 3px; background: #1a2028; }
+.sk { display: block; height: 11px; border-radius: 3px; background: var(--line); }
 .sk--title { height: 22px; width: 44%; }
 .sk--lede  { width: 64%; margin-top: 10px; }
 .sk--row   { height: 12px; width: 100%; }
@@ -663,7 +660,7 @@ body[data-busy="1"] .cbx { pointer-events: none; }
   .verdict-title { font-size: 20px; }
   .panel-head { padding: 12px 16px; }
   .ledger { padding: 4px 16px 14px; }
-  .prow { padding: 0 16px 0 8px; }
+  .prow { padding: 0 16px; }
   .pgroup { padding-left: 16px; padding-right: 16px; }
   .pfoot { padding: 12px 16px; flex-wrap: wrap; }
   .rlist { padding: 2px 16px 12px; }
@@ -685,18 +682,16 @@ body[data-busy="1"] .cbx { pointer-events: none; }
   .panel-head { flex-wrap: wrap; }
   .panel-file { display: none; }
   .prow {
-    grid-template-columns: 34px minmax(0, 1fr) auto;
-    height: auto; min-height: 52px; padding: 7px 16px 7px 8px; gap: 2px 6px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    height: auto; min-height: 56px; padding: 8px 16px; gap: 10px;
   }
   .pmain { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; }
   .ptags { justify-content: flex-start; }
-  .phit { height: 44px; }
   .pact { align-self: center; }
   .frow { grid-template-columns: minmax(0, 1fr); }
   .frow-act { grid-row: auto; grid-column: 1; justify-self: start; margin-top: 4px; }
   .srow { grid-template-columns: 16px minmax(0, 1fr) auto; }
   .foot-note { margin-left: 0; text-align: left; width: 100%; }
-  .btn--bulk { flex: 1 1 auto; }
 }
 
 @media (max-width: 420px) {
@@ -708,7 +703,9 @@ body[data-busy="1"] .cbx { pointer-events: none; }
 @media (pointer: coarse) {
   .btn, .btn--xs { height: 40px; min-width: 40px; }
   .btn--xs { padding: 0 12px; }
-  .phit { height: 48px; }
+  .sw { width: 42px; height: 26px; }
+  .sw::after { width: 18px; height: 18px; }
+  .sw[aria-checked="true"]::after { transform: translateX(16px); }
   .dock-toggle { min-height: 44px; }
 }
 
@@ -792,9 +789,6 @@ body[data-busy="1"] .cbx { pointer-events: none; }
         </div>
         <div class="plist" id="plist"></div>
         <div class="pfoot">
-          <button class="btn btn--bulk" type="button" id="disable-selected" data-act="disable-selected" disabled>
-            Disable selected (0)
-          </button>
           <button class="linkbtn" type="button" data-act="safe-mode" title="Keep only the two core bundles and remove every other bundle from the profile">Safe mode&hellip;</button>
           <span class="foot-note" id="pl-note">A snapshot is taken before every change.</span>
         </div>
@@ -1091,7 +1085,6 @@ window.__BOOT_STATE__ = window.__BOOT_STATE__ || null;
 
   var state = window.__BOOT_STATE__ || null;
   var busy = false;
-  var picked = new Set();
   var query = '';
   var dockOpen = false;
 
@@ -1544,25 +1537,7 @@ window.__BOOT_STATE__ = window.__BOOT_STATE__ || null;
 
   function pluginRow(p, mode) {
     var row = el('div', 'prow');
-    var hit = el('label', 'phit');
-
-    if (mode === 'selected') {
-      var box = el('input', 'cbx');
-      box.type = 'checkbox';
-      box.checked = picked.has(p.name);
-      box.setAttribute('data-pick', p.name);
-      box.setAttribute('data-key', 'chk:' + p.name);
-      if (p.core) {
-        box.setAttribute('aria-disabled', 'true');
-        box.title = 'Core bundle: dsh-safe never disables it.';
-      } else {
-        box.setAttribute('aria-label', 'Select ' + p.name);
-      }
-      add(hit, box);
-    } else {
-      add(hit, el('span', 'sr'));
-    }
-    add(row, hit);
+    var on = mode === 'selected';
 
     var main = el('div', 'pmain');
     var name = el('span', 'pname', p.name);
@@ -1578,14 +1553,33 @@ window.__BOOT_STATE__ = window.__BOOT_STATE__ || null;
     } else {
       add(tags, el('span', 'pwhen', '—'));
     }
+
     add(main, tags);
     add(row, main);
 
     var act = el('div', 'pact');
-    if (mode === 'available') {
-      add(act, actionBtn('Enable', 'enable-one', { name: p.name },
-        null, state.appRunning, state.appRunning ? 'Quit DeepSeek Harness first.' : ''));
+    var sw = el('button', 'sw');
+    sw.type = 'button';
+    sw.setAttribute('role', 'switch');
+    sw.setAttribute('aria-checked', on ? 'true' : 'false');
+    sw.setAttribute('data-key', 'sw:' + p.name);
+    sw.setAttribute('data-act', 'toggle');
+    sw.setAttribute('data-name', p.name);
+    sw.setAttribute('data-on', on ? '1' : '0');
+    if (p.core) {
+      sw.disabled = true;
+      sw.setAttribute('aria-label', p.name + ' — core bundle, always on');
+      sw.title = 'Core bundle: dsh-safe never switches it off.';
+    } else if (state && state.appRunning) {
+      sw.disabled = true;
+      sw.setAttribute('aria-label', (on ? 'Switch off ' : 'Switch on ') + p.name);
+      sw.title = 'Quit DeepSeek Harness first: it owns package.json while it runs.';
+    } else {
+      sw.setAttribute('aria-label', (on ? 'Switch off ' : 'Switch on ') + p.name);
+      sw.title = (on ? 'Switch off ' : 'Switch on ') + p.name +
+        (on ? ' (a snapshot is taken first)' : '');
     }
+    add(act, sw);
     add(row, act);
     return row;
   }
@@ -1605,12 +1599,6 @@ window.__BOOT_STATE__ = window.__BOOT_STATE__ || null;
     var avail = state.available || [];
     var shown = all.filter(function (p) { return matches(p.name); });
     var shownAvail = avail.filter(function (p) { return matches(p.name); });
-
-    // drop picks that no longer exist
-    var live = new Set(all.map(function (p) { return p.name; }));
-    Array.from(picked).forEach(function (name) {
-      if (!live.has(name)) picked.delete(name);
-    });
 
     $('pl-count').textContent = all.length + ' selected · ' + avail.length + ' available';
 
@@ -1649,12 +1637,6 @@ window.__BOOT_STATE__ = window.__BOOT_STATE__ || null;
   }
 
   function syncActions() {
-    var bulk = $('disable-selected');
-    var locked = Boolean(state && state.appRunning);
-    bulk.textContent = 'Disable selected (' + picked.size + ')';
-    bulk.disabled = picked.size === 0 || locked || !state;
-    bulk.title = locked ? lockReason() : (picked.size === 0 ? 'Tick a plugin first.' : '');
-
     var note = $('pl-note');
     var reason = lockReason();
     note.textContent = reason || 'A snapshot is taken before every change.';
@@ -1889,17 +1871,18 @@ window.__BOOT_STATE__ = window.__BOOT_STATE__ || null;
   function disable(names) {
     var list = names.slice();
     if (!list.length) return;
-    if (list.length > 1 && !confirm('Disable ' + list.length + ' plugins?\n\n' + list.join('\n'))) return;
-    if (list.length === 1 && !confirm('Disable ' + list[0] + '?')) return;
-    picked.clear();
-    renderPlugins();
-    syncActions();
     act({ action: 'disable', names: list });
   }
 
   function enable(names) {
-    if (!confirm('Enable ' + names.join(', ') + '?')) return;
-    act({ action: 'enable', names: names });
+    var list = names.slice();
+    if (!list.length) return;
+    act({ action: 'enable', names: list });
+  }
+
+  function toggle(name, on) {
+    if (on) disable([name]);
+    else enable([name]);
   }
 
   function restore(id) {
@@ -1930,12 +1913,6 @@ window.__BOOT_STATE__ = window.__BOOT_STATE__ || null;
     act({ action: 'shutdown' });
   }
 
-  function pick(name, on) {
-    if (on) picked.add(name);
-    else picked.delete(name);
-    syncActions();
-  }
-
   /* ------------------------------------------------------------ wiring -- */
 
   document.addEventListener('click', function (event) {
@@ -1950,7 +1927,10 @@ window.__BOOT_STATE__ = window.__BOOT_STATE__ || null;
     if (actName === 'try') { act({ action: 'try' }); return; }
     if (actName === 'launch') { launch(); return; }
     if (actName === 'disable-one') { disable([name]); return; }
-    if (actName === 'disable-selected') { disable(Array.from(picked)); return; }
+    if (actName === 'toggle') {
+      toggle(name, node.getAttribute('data-on') === '1');
+      return;
+    }
     if (actName === 'enable-one') { enable([name]); return; }
     if (actName === 'restore') { restore(id); return; }
     if (actName === 'restore-latest') { restoreLatest(); return; }
@@ -1965,14 +1945,6 @@ window.__BOOT_STATE__ = window.__BOOT_STATE__ || null;
       return;
     }
     if (actName === 'dock-toggle') { openDock(!dockOpen); return; }
-  });
-
-  document.addEventListener('change', function (event) {
-    var box = event.target;
-    if (!box || !box.getAttribute) return;
-    var name = box.getAttribute('data-pick');
-    if (!name) return;
-    pick(name, box.checked);
   });
 
   $('filter').addEventListener('input', function () {

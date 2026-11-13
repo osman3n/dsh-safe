@@ -26,6 +26,29 @@ Preview states: `?state=failed` (default), `running`, `preflight`, `healthy`,
 
 ---
 
+## Revision — light tone, one switch per plugin
+
+Two changes after the first pass, both requested from use:
+
+1. **Light palette.** The page is now white-on-light (`--bg #f4f6f9`), because it
+   is read next to the (light) Harness window on a Windows desktop, and a dark
+   recovery page looked like a different application. Colour still carries the
+   meaning: red for the failure, amber for waiting/blocked, green for a verified
+   boot, blue for focus and selection — each on its own pale tint.
+2. **A switch per plugin instead of a checkbox plus a bulk button.** The previous
+   flow was tick, then find *Disable selected (N)*, then confirm. Three steps for
+   one reversible edit. Now every row has `role="switch"`: on = loaded in this
+   profile, flip it and the change applies, with the pre-change snapshot shown in
+   the output dock. Core bundles keep their switch on and locked; installed but
+   unselected bundles show an off switch that adds them back.
+
+No confirmation dialog on a switch flip: the snapshot taken immediately before
+the write, plus **Recovery points**, is the safeguard, and the dock names the
+snapshot id so undo is one click away. `Restore` and `Safe mode` keep their
+confirmations — those touch several bundles at once.
+
+---
+
 ## What was wrong
 
 The old page was five equal panels in a dark dashboard. The verdict was a
@@ -41,7 +64,7 @@ One question per region, answered top to bottom:
 
 1. **What broke?** — verdict band: state word, one sentence, one filled button.
 2. **Why?** — boot evidence, a chronology: Raised → Failed → Waiting → Suspects.
-3. **Which switch?** — plugins: filter, checkboxes, per-row *Disable this*.
+3. **Which switch?** — plugins: filter, one on/off switch per row (plus *Disable this* in the evidence ledger).
 4. **Can I go back?** — recovery points (snapshots) and recent changes, in a rail.
 5. **What did it say?** — output dock, pinned, collapsed until something runs.
 
@@ -72,28 +95,28 @@ can change (counts, times, bundle totals) so polling never shifts a column.
 ## Colour roles
 
 Chrome is neutral and carries no meaning. Three hues do all the semantic work,
-each on its own dark tint, never as a large fill:
+each on its own pale tint, never as a large fill:
 
 | token | value | meaning | contrast |
 | --- | --- | --- | --- |
-| `--bad` | `#ff7b72` | boot failed, required plugin | 7.45 on panel |
-| `--warn` | `#e9b64d` | still running, waiting, blocked | 10.07 |
-| `--good` | `#4ad295` | last known-good boot, ready to launch | 9.79 |
-| `--sel` / `--focus` | `#2f81f7` / `#6ea8fe` | selection, focus ring | 7.77 |
+| `--bad` | `#c0392b` (`--bad-ink #a32b1e`) | boot failed, required plugin | 6.46 on `--bad-bg` |
+| `--warn` | `#9a6400` (`--warn-ink #7d5200`) | still running, waiting, blocked | 5.9 on `--warn-bg` |
+| `--good` | `#17804f` (`--good-ink #106b41`) | last known-good boot, ready to launch | 6.1 on `--good-bg` |
+| `--sel` / `--focus` | `#1f6feb` | selection, focus ring | 4.83 on panel |
 
-Text ladder measured against both grounds (`#0f1216` panel and `#141920` well):
+Text ladder measured against the panel (`#ffffff`):
 
-| token | value | on panel | on well |
-| --- | --- | --- | --- |
-| `--ink` | `#f2f5f8` | 17.2 | 16.1 |
-| `--ink-2` | `#c3ccd6` | 11.6 | 10.9 |
-| `--ink-3` | `#9aa3ae` | 7.4 | 6.9 |
-| `--ink-4` | `#828b96` | 5.4 | 5.1 |
+| token | value | on panel |
+| --- | --- | --- |
+| `--ink` | `#0f1720` | 17.9 |
+| `--ink-2` | `#33404f` | 10.0 |
+| `--ink-3` | `#55636f` | 6.2 |
+| `--ink-4` | `#68737f` | 4.9 |
 
-The only filled control on the page is the primary action (white on near-black
-inverted). Everything else is a 1px border. Surfaces are one tone step apart
-(`#0a0c0f` → `#0f1216` → `#141920`) and hairlines (`#1c222a`) do the
-separating, so nothing needs a shadow and nothing glows.
+The only filled control on the page is the primary action (white on `--ink`).
+Everything else is a 1px border. Surfaces are one tone step apart
+(`#f4f6f9` → `#ffffff` → `#f1f4f8`) and hairlines (`#e3e7ee`) do the
+separating; a single 1px ambient shadow lifts the panels, nothing glows.
 
 ## Spacing and metrics
 
@@ -132,15 +155,17 @@ before it reaches `fetch`.
 
 ## Keyboard and focus
 
-40 stops, in visual order: skip link → Refresh → Snapshot now → Test boot →
-Launch Harness → Disable (verdict) → Test boot → Disable this ×2 → Disable ×3 →
-filter → clear-filter → 14 checkboxes → 2 Enable → Safe mode… → 5 Restore →
-Output → Stop this UI. Every one paints a ring (`2px solid #6ea8fe`,
+38 stops in the failed state, in visual order: skip link → Refresh → Snapshot now →
+Test boot → Launch Harness → Disable (verdict) → Test boot → Disable this ×2 →
+Disable ×3 → filter → clear-filter → 14 plugin switches → 2 Enable → Safe mode… →
+5 Restore → Output → Stop this UI. Every one paints a ring (`2px solid var(--focus)`,
 `offset 2px`).
 
 - The plugin filter is `<input type="search">` with a labelled clear button;
   Escape clears it, and the empty result names the query and offers Clear.
-- Rows are not clickable, so they are not tab stops; their buttons are.
+- Rows are not clickable, so they are not tab stops; their switch is. The switch
+  is a `<button role="switch">` with `aria-checked`, so Space and Enter both flip
+  it, and the accessible name states the action (*Switch off dsh-pocket*).
 - `renderAll()` captures the focused element's `data-key` before re-rendering
   and restores it after, so 3s polling cannot throw focus to `<body>`.
 - The dock is a disclosure with `aria-expanded`; the log is `role="log"` +
@@ -170,12 +195,11 @@ Output → Stop this UI. Every one paints a ring (`2px solid #6ea8fe`,
 
 | control | hover | press |
 | --- | --- | --- |
-| `.btn` | border `#3b4552`, background `#171d25` | `translateY(1px)` |
-| `.btn--solid` | pure white | `translateY(1px)` |
-| `.btn--bulk` | bad tint, bad border | as above |
+| `.btn` | border `--line-3`, background `--well` | `translateY(1px)` |
+| `.btn--solid` | `#1d2836` | `translateY(1px)` |
 | row | nothing — rows are not clickable | — |
-| row with a focused control | `#12171e` background (`:focus-within`) | — |
-| checkbox | border `#4d5a6a` | fill `#2f81f7`, white tick |
+| row with a focused control | `--well` background (`:focus-within`) | — |
+| switch | border `--ink-3` | knob slides 16px, track `--ink` |
 | link button | text to `--ink` | — |
 | dock toggle | text to `--ink-2` | chevron rotates |
 
@@ -187,18 +211,19 @@ Output → Stop this UI. Every one paints a ring (`2px solid #6ea8fe`,
 - **≤900** — header: Refresh / Snapshot now / Test boot fold into an `Actions` menu, page gutter 16px.
 - **≤880** — the evidence ledger stacks; the vertical rule becomes a hairline between stages so the groups still separate.
 - **≤720** — the rail's two panels stack; verdict padding 18/16, panel heads 12/16.
-- **≤640** — verdict meta wraps to counts-then-filename on its own line, plugin rows grow to `min-height: 52px` with the action under the name, failed rows put *Disable this* under the message, the search field takes the full panel head.
+- **≤640** — verdict meta wraps to counts-then-filename on its own line, plugin rows grow to `min-height: 56px` with name and badges stacked and the switch kept on the right, failed rows put *Disable this* under the message, the search field takes the full panel head.
 - **390** — single column, 16px gutter, title 20px, snapshots keep Restore inline, dock 46px with a 44px target. No horizontal scrolling.
 
-The plugin list is a fixed 385px scroll box (one sticky group head + eight 44px
-rows). Snapshots are never clamped: every row is whole and every Restore is
-live.
+The plugin list is a `min(62vh, 660px)` scroll box (one sticky group head plus
+twelve 48px rows at 1440×900), so the switch you need is reachable without
+scrolling the page. Snapshots are never clamped: every row is whole and every
+Restore is live.
 
 ## Behaviour parity
 
 Unchanged: the token URL, every route, `uiState`, `uiAction`, `createUiServer`,
 `startUi`, the 3s poll while the app runs, `__BOOT_STATE__` injection, the
-action names, the `BLOCKED:` prefix, `confirm()` on disable/restore/safe-mode,
+action names, the `BLOCKED:` prefix, `confirm()` on restore/safe-mode,
 `setLog` replacing the log text, and the `shutdown` close.
 
 Five things are new, all client-side and none of them touching the contract:
@@ -214,11 +239,13 @@ Five things are new, all client-side and none of them touching the contract:
 
 ## Handoff
 
-In `tools/dsh-safe/dsh-safe.mjs`, replace **lines 1890–2401** (`const UI_HTML =
-String.raw\`<!doctype html>` through `</html>\`;`) with the contents of
-`ui-html.block.js`. Nothing else changes: `createUiServer()` already does
-`UI_HTML.replace('__BOOT__', boot)`, and the block keeps exactly one
-`__BOOT__` placeholder on the line `window.__BOOT_STATE__ = __BOOT__;`.
+In `tools/dsh-safe/dsh-safe.mjs`, replace the `const UI_HTML = String.raw\`…
+\`;` region (it starts with the `/* dsh-safe recovery page */` header and ends
+after `</html>`; `.tmp/splice-ui.mjs` in this workspace does it mechanically and
+collapses stacked headers) with the contents of `ui-html.block.js`. Nothing else
+changes: `createUiServer()` already does `UI_HTML.replace('__BOOT__', boot)`, and
+the block keeps exactly one `__BOOT__` placeholder on the line
+`window.__BOOT_STATE__ = __BOOT__;`.
 
 The block is inside a `String.raw` template, so it must not contain a backtick
 or `${`. `_emit.mjs` refuses to write if either appears; the page's own escapes
@@ -243,6 +270,7 @@ that is the error bar and the dock being exercised, not a fault.
 - All six states rendered and read at 1440; `failed` and `clean` also at 768 and 390.
 - Zero console exceptions from the page itself (only the deliberate `file://` fetch failure).
 - 40 tab stops, all with a visible ring; focus survives a poll-driven re-render.
-- 27 contrast pairs pass, worst 5.44:1.
-- Snapshot action end-to-end: dock opens, `snapshot written: …`, rail count 5→6, new row appears.
-- Filter, checkbox, bulk disable and the empty-result state exercised.
+- 27 contrast pairs pass under the light palette, worst 4.66:1.
+- Switch end-to-end over CDP (keyboard Space): 36 → 35 bundles, snapshot
+  `…-pre-disable-dsh-pocket` written, row moves to available, Space again restores 36.
+- Filter, switch, and the empty-result state exercised.

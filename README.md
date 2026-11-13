@@ -107,7 +107,7 @@ dsh-safe.cmd snapshot -l before-thing-x
 | `disable [name...]` | Removes bundles from `dsh.profile.bundles`; no names = interactive picker |
 | `enable [name...]` | Adds installed bundles back; no names = interactive picker |
 | `try` | Clone this profile under a temporary name, boot it in an isolated `DSH_HOME`, wait for the web server, probe it, then delete the clone |
-| `ui` | Start a local recovery page: crash evidence, plugin checkboxes, snapshots, "test boot", "launch" |
+| `ui` | Start a local recovery page (light theme): crash evidence, one on/off switch per plugin, snapshots, "test boot", "launch" |
 | `watch` | Serves the recovery page and opens it when Harness writes a new crash or startup-failure log |
 | `watch --install` | Starts that watcher hidden at every Windows sign-in (`--uninstall` removes it) |
 | `recover` | Reads the newest startup log and explains which plugin failed and why |
@@ -170,9 +170,12 @@ before anything changes. Below it:
   column.
 - **Recovery points** — the newest 25 snapshots, each with **Restore**. Until a boot
   has been verified it says so instead of pretending there is a good point.
-- **Plugins** — every selected bundle with a checkbox, a filter box and a `kind`
-  badge (core/local/official/third-party). Core bundles are locked. There is also
-  an **Enable** button for installed-but-not-selected bundles. The list is sorted
+- **Plugins** — every selected bundle with its own on/off switch, a filter box and a
+  `kind` badge (core/local/official/third-party). **On** means the bundle is loaded;
+  flipping it off removes it from the profile and a snapshot is taken first, so
+  **Recovery points** can put it back. Core bundles stay on and their switch is
+  locked. Installed bundles that are not selected appear below the selected ones
+  with their switch off — flip it on to add them back. The list is sorted
   **newest install or update first**, using the app's plugin-operation log plus the
   `node_modules` timestamps, so the plugin you just added sits near the top.
 - **Activity** — recent plugin operations, so you can spot the change that broke
