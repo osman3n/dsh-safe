@@ -15,7 +15,7 @@
  *   restore    put a snapshot back
  *   recover    read crash/startup evidence and disable the likely culprit
  *   try        test-boot a COPY of the profile in an isolated DSH_HOME
- *   ui         browser recovery page: evidence, plugin picker, snapshots, test boot
+ *   ui         recovery window: evidence, plugin picker, snapshots, test boot
  *   open       preflight `try`, auto-recover on failure, then launch the app
  *
  * Nothing here imports Harness code, so it keeps working while the app is down.
@@ -33,7 +33,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { parseArgs } from 'node:util';
 import { pathToFileURL } from 'node:url';
 
-const VERSION = '0.2.6';
+const VERSION = '0.2.7';
 
 const HOME = process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
 const SAFETY_DIR = path.join(HOME, 'safety');
@@ -61,11 +61,11 @@ Usage:
   dsh-safe disable [name...]       disable specific plugin(s); no names = interactive picker
   dsh-safe enable  [name...]       re-enable plugin(s); no names = interactive picker
   dsh-safe try                     test-boot a copy of this profile in an isolated sandbox
-  dsh-safe ui                      open a recovery page in the browser (works while the app is down)
+  dsh-safe ui                      open the recovery page in its own window (works while the app is down)
   dsh-safe watch                   serve the recovery page and open it when Harness crashes
   dsh-safe watch --install          start the crash watcher hidden at every Windows sign-in
   dsh-safe open                    preflight, auto-fix on failure, then launch the app
-  dsh-safe open --ui               preflight, and on failure open the recovery page instead
+  dsh-safe open --ui               preflight, and on failure open the recovery window instead
   dsh-safe recover                 explain what probably broke the last boot
   dsh-safe recover --apply         disable the likely culprit (snapshot taken first)
   dsh-safe recover --pick --apply  choose the culprit(s) yourself from the suspect list
@@ -83,7 +83,8 @@ Options:
   --timeout <sec>    try/open: boot deadline (default 120)
   --grace <sec>      try/open: extra watch time after the web server answers (default 5)
   --port <n>         ui: listen port (default: random free port)
-  --no-browser       ui: do not open a browser automatically
+  --browser          ui/open --ui: open a normal browser tab instead of the app window
+  --no-browser       ui/open --ui: only serve the page, open nothing
   --install          watch: start hidden at every sign-in (Windows)
   --uninstall        watch: remove the sign-in entry
   --ui               open: on a failed preflight, start the recovery UI instead of auto-fixing
@@ -1656,6 +1657,7 @@ function readBody(req) {
 }
 
 async function handleUiRequest(req, res, ctx) {
+  ctx.lastRequest = Date.now();
   const url = new URL(req.url, 'http://127.0.0.1');
   const prefix = `/${ctx.token}`;
   if (!url.pathname.startsWith(prefix)) {
@@ -1670,6 +1672,11 @@ async function handleUiRequest(req, res, ctx) {
       boot = JSON.stringify(uiState(ctx.opts, ctx.preflight)).replace(/</g, '\\u003c');
     } catch { /* the page retries over /api/state */ }
     sendHtml(res, UI_HTML.replace('__BOOT__', boot));
+    return;
+  }
+
+  if (req.method === 'GET' && route === '/api/ping') {
+    sendJson(res, 200, { ok: true });
     return;
   }
 
@@ -1720,9 +1727,63 @@ function openUrl(url) {
   } catch { /* the URL is still printed */ }
 }
 
+/* A dedicated profile directory keeps the app window out of the user's normal
+ * browser session: no tabs, no history, no session restore, its own icon. */
+const UI_WINDOW_DIR = path.join(SAFETY_DIR, 'ui-window');
+
+const APP_BROWSERS = [
+  path.join(process.env['PROGRAMFILES(X86)'] || 'C:/Program Files (x86)', 'Microsoft/Edge/Application/msedge.exe'),
+  path.join(process.env.PROGRAMFILES || 'C:/Program Files', 'Microsoft/Edge/Application/msedge.exe'),
+  path.join(process.env.LOCALAPPDATA || '', 'Microsoft/Edge/Application/msedge.exe'),
+  path.join(process.env.PROGRAMFILES || 'C:/Program Files', 'Google/Chrome/Application/chrome.exe'),
+  path.join(process.env['PROGRAMFILES(X86)'] || 'C:/Program Files (x86)', 'Google/Chrome/Application/chrome.exe'),
+  path.join(process.env.LOCALAPPDATA || '', 'Google/Chrome/Application/chrome.exe'),
+];
+
+function appBrowser() {
+  for (const candidate of APP_BROWSERS) {
+    try {
+      if (candidate && fs.existsSync(candidate)) return candidate;
+    } catch { /* try the next one */ }
+  }
+  return null;
+}
+
+/* Opens the recovery page in a chromeless window of the system browser: a
+ * normal title bar, a taskbar entry, no address bar and no tab strip. Falls
+ * back to a normal browser tab when no Chromium build is installed. */
+function openAppWindow(url, { width = 1180, height = 860 } = {}) {
+  const browser = appBrowser();
+  if (!browser) {
+    openUrl(url);
+    return false;
+  }
+  try {
+    fs.mkdirSync(UI_WINDOW_DIR, { recursive: true });
+    spawn(browser, [
+      `--app=${url}`,
+      `--user-data-dir=${UI_WINDOW_DIR}`,
+      `--window-size=${width},${height}`,
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--disable-features=Translate',
+    ], {
+      detached: true,
+      stdio: 'ignore',
+      // No windowsHide: Chromium applies STARTUPINFO's hidden flag to its own
+      // first window, which would open the app window invisible.
+      windowsHide: false,
+    }).unref();
+    return true;
+  } catch {
+    openUrl(url);
+    return false;
+  }
+}
+
 async function createUiServer(opts, { preflight = null } = {}) {
   const token = crypto.randomBytes(9).toString('hex');
-  const ctx = { token, opts, preflight, server: null };
+  const ctx = { token, opts, preflight, server: null, lastRequest: Date.now() };
   const server = http.createServer((req, res) => {
     handleUiRequest(req, res, ctx).catch((error) => {
       try {
@@ -1742,17 +1803,38 @@ async function createUiServer(opts, { preflight = null } = {}) {
   });
 
   const actual = server.address().port;
-  return { server, token, url: `http://127.0.0.1:${actual}/${token}/` };
+  return { server, ctx, token, url: `http://127.0.0.1:${actual}/${token}/` };
 }
 
-async function startUi(opts, { openBrowser = false, preflight = null } = {}) {
-  const { server, url } = await createUiServer(opts, { preflight });
+/* openMode: 'window' (its own app window), 'browser' (a normal tab), 'none'. */
+async function startUi(opts, { openMode = 'none', preflight = null } = {}) {
+  const { server, ctx, url } = await createUiServer(opts, { preflight });
   line('');
   ok(`recovery UI: ${url}`);
   info(`profile ${profileRef(opts).name}   app ${appRunning() ? 'is running' : 'is not running'}`);
   if (preflight) info(`preflight: ${preflight.ok ? 'healthy' : 'failed'} (${preflight.reason || 'unknown reason'})`);
+  if (openMode === 'window') {
+    if (openAppWindow(url)) info('opened in its own window');
+    else warn('no Edge or Chrome found; opened in the default browser');
+  } else if (openMode === 'browser') {
+    openUrl(url);
+  }
   line('Keep this window open while you use the page; Ctrl+C (or the Stop button) ends it.');
-  if (openBrowser) openUrl(url);
+
+  if (openMode === 'window') {
+    // The page pings every 20 s. When the window is gone the ping stops, and
+    // the server ends itself instead of leaving a hidden process behind.
+    const idleMs = Number(process.env.DSH_SAFE_UI_IDLE_MS || 120000);
+    const every = Math.max(1000, Math.min(30000, Math.floor(idleMs / 4)));
+    const reaper = setInterval(() => {
+      if (Date.now() - ctx.lastRequest < idleMs) return;
+      clearInterval(reaper);
+      warn('the window was closed; stopping the recovery UI');
+      server.close();
+    }, every);
+    reaper.unref();
+    server.once('close', () => clearInterval(reaper));
+  }
 
   await new Promise((resolve) => server.once('close', resolve));
   info('recovery UI stopped');
@@ -1862,7 +1944,7 @@ async function cmdWatch(opts) {
       const now = Date.now();
       if (process.env.DSH_SAFE_WATCH_OPEN !== '0' && now - lastOpen > 5000) {
         lastOpen = now;
-        openUrl(url);
+        openAppWindow(url);
         info('opened the recovery page. If Harness is still up, quit it, then disable the plugin.');
       }
     }
@@ -1901,6 +1983,7 @@ const UI_HTML = String.raw`<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light">
 <title>Harness recovery</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill='%230b3d91' d='M32 4 8 13v18c0 14.6 10.2 24.9 24 29 13.8-4.1 24-14.4 24-29V13L32 4Z'/%3E%3Cpath fill='none' stroke='%23ffffff' stroke-width='6' stroke-linecap='round' stroke-linejoin='round' d='m20 32 8 8 16-17'/%3E%3C/svg%3E">
 
 <style>
 /* =====================================================================
@@ -2146,11 +2229,7 @@ main {
 
 /* ============================================================= grids == */
 
-.cols {
-  display: grid; grid-template-columns: minmax(0, 1fr) 356px;
-  gap: 20px; margin-top: 20px; align-items: start;
-}
-.col-main, .rail { display: grid; gap: 20px; align-content: start; min-width: 0; }
+.stack { display: grid; gap: 20px; margin-top: 20px; min-width: 0; }
 
 /* ============================================================ panels == */
 
@@ -2513,11 +2592,6 @@ body[data-busy="1"] .sw { pointer-events: none; }
 
 /* ======================================================== responsive == */
 
-@media (max-width: 1100px) {
-  .cols { grid-template-columns: minmax(0, 1fr); }
-  .rail { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-}
-
 @media (max-width: 900px) {
   .bar { padding: 0 16px; gap: 10px; }
   .bar-actions { display: none; }
@@ -2536,7 +2610,6 @@ body[data-busy="1"] .sw { pointer-events: none; }
 }
 
 @media (max-width: 720px) {
-  .rail { grid-template-columns: minmax(0, 1fr); }
   .verdict { padding: 18px 16px 16px; }
   .verdict-title { font-size: 20px; }
   .panel-head { padding: 12px 16px; }
@@ -2642,62 +2715,56 @@ body[data-busy="1"] .sw { pointer-events: none; }
 
   <section class="verdict" id="verdict" data-tone="idle" aria-labelledby="verdict-title"></section>
 
-  <div class="cols">
-    <div class="col-main">
+  <div class="stack">
 
-      <section class="panel" aria-labelledby="ev-title">
-        <div class="panel-head">
-          <h2 class="panel-title" id="ev-title">Boot evidence</h2>
-          <span class="panel-file mono" id="ev-file"></span>
+    <section class="panel" aria-labelledby="ev-title">
+      <div class="panel-head">
+        <h2 class="panel-title" id="ev-title">Boot evidence</h2>
+        <span class="panel-file mono" id="ev-file"></span>
+      </div>
+      <div id="evidence-body"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="pl-title">
+      <div class="panel-head">
+        <h2 class="panel-title" id="pl-title">Plugins</h2>
+        <span class="panel-count" id="pl-count">loading…</span>
+        <div class="filter">
+          <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <circle cx="7" cy="7" r="4.1" stroke="currentColor" stroke-width="1.4"/>
+            <path d="M10.2 10.2 14 14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+          </svg>
+          <input id="filter" type="search" autocomplete="off" spellcheck="false"
+                 placeholder="Filter plugins" aria-label="Filter plugins by name">
+          <button class="filter-x" id="filter-x" type="button" data-act="clear-filter"
+                  aria-label="Clear the filter" hidden>&#215;</button>
         </div>
-        <div id="evidence-body"></div>
-      </section>
+      </div>
+      <div class="plist" id="plist"></div>
+      <div class="pfoot">
+        <button class="linkbtn" type="button" data-act="safe-mode" title="Keep only the two core bundles and remove every other bundle from the profile">Safe mode&hellip;</button>
+        <span class="foot-note" id="pl-note">A snapshot is taken before every change.</span>
+      </div>
+    </section>
 
-      <section class="panel" aria-labelledby="pl-title">
-        <div class="panel-head">
-          <h2 class="panel-title" id="pl-title">Plugins</h2>
-          <span class="panel-count" id="pl-count">loading…</span>
-          <div class="filter">
-            <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <circle cx="7" cy="7" r="4.1" stroke="currentColor" stroke-width="1.4"/>
-              <path d="M10.2 10.2 14 14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-            </svg>
-            <input id="filter" type="search" autocomplete="off" spellcheck="false"
-                   placeholder="Filter plugins" aria-label="Filter plugins by name">
-            <button class="filter-x" id="filter-x" type="button" data-act="clear-filter"
-                    aria-label="Clear the filter" hidden>&#215;</button>
-          </div>
-        </div>
-        <div class="plist" id="plist"></div>
-        <div class="pfoot">
-          <button class="linkbtn" type="button" data-act="safe-mode" title="Keep only the two core bundles and remove every other bundle from the profile">Safe mode&hellip;</button>
-          <span class="foot-note" id="pl-note">A snapshot is taken before every change.</span>
-        </div>
-      </section>
+    <section class="panel" aria-labelledby="snap-title">
+      <div class="panel-head">
+        <h2 class="panel-title" id="snap-title">Recovery points</h2>
+        <span class="panel-count" id="snap-count"></span>
+      </div>
+      <div class="kv" id="snap-good"><span class="dot"></span><span>last known-good boot</span></div>
+      <div class="rlist" id="snapshots"></div>
+      <div class="rail-note" id="snap-note">Restore also snapshots the current state first.</div>
+    </section>
 
-    </div>
+    <section class="panel" aria-labelledby="act-title">
+      <div class="panel-head">
+        <h2 class="panel-title" id="act-title">Recent changes</h2>
+        <span class="panel-count" id="act-count"></span>
+      </div>
+      <div class="rlist" id="activity"></div>
+    </section>
 
-    <aside class="rail">
-
-      <section class="panel" aria-labelledby="snap-title">
-        <div class="panel-head">
-          <h2 class="panel-title" id="snap-title">Recovery points</h2>
-          <span class="panel-count" id="snap-count"></span>
-        </div>
-        <div class="kv" id="snap-good"><span class="dot"></span><span>last known-good boot</span></div>
-        <div class="rlist" id="snapshots"></div>
-        <div class="rail-note" id="snap-note">Restore also snapshots the current state first.</div>
-      </section>
-
-      <section class="panel" aria-labelledby="act-title">
-        <div class="panel-head">
-          <h2 class="panel-title" id="act-title">Recent changes</h2>
-          <span class="panel-count" id="act-count"></span>
-        </div>
-        <div class="rlist" id="activity"></div>
-      </section>
-
-    </aside>
   </div>
 </main>
 
@@ -3641,6 +3708,12 @@ window.__BOOT_STATE__ = __BOOT__;
       })
       .catch(function () { /* keep the current view */ });
   }, 3000);
+
+  // A quiet window is still an open window: the server ends itself when this
+  // stops arriving, so closing the window never leaves a hidden node process.
+  setInterval(function () {
+    fetch('api/ping', { cache: 'no-store' }).catch(function () { /* server gone */ });
+  }, 20000);
 })();
 </script>
 </body>
@@ -3670,6 +3743,7 @@ const OPTIONS = {
   grace: { type: 'string' },
   port: { type: 'string' },
   'no-browser': { type: 'boolean' },
+  browser: { type: 'boolean' },
   ui: { type: 'boolean' },
   install: { type: 'boolean' },
   uninstall: { type: 'boolean' },
@@ -3736,7 +3810,9 @@ async function main(argv) {
     case 'check':
       return cmdTry(opts);
     case 'ui':
-      return startUi(opts, { openBrowser: !opts['no-browser'] });
+      return startUi(opts, {
+        openMode: opts['no-browser'] ? 'none' : (opts.browser ? 'browser' : 'window'),
+      });
     case 'watch':
       return cmdWatch(opts);
     case 'open': {
@@ -3744,7 +3820,9 @@ async function main(argv) {
         // The recovery shortcut: show the page immediately, even while the app
         // is running (mutating actions stay blocked there). Preflight is the
         // page's "Test boot" button, so opening the page stays fast.
-        return startUi(opts, { openBrowser: true });
+        return startUi(opts, {
+          openMode: opts['no-browser'] ? 'none' : (opts.browser ? 'browser' : 'window'),
+        });
       }
       if (appRunning()) {
         info('DeepSeek Harness is already running; not launching another instance.');
@@ -3761,7 +3839,10 @@ async function main(argv) {
       if (!result.ok) {
         if (opts.ui) {
           warn('preflight failed; starting the recovery UI so you can choose what to disable...');
-          return startUi(opts, { openBrowser: true, preflight: result });
+          return startUi(opts, {
+            openMode: opts['no-browser'] ? 'none' : (opts.browser ? 'browser' : 'window'),
+            preflight: result,
+          });
         }
         if (!fix) {
           bad('preflight failed; not launching (--no-fix).');

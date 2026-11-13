@@ -4,7 +4,11 @@ The page a user lands on when DeepSeek Harness will not boot. It has one job:
 say what failed, and put the switch that fixes it within reach.
 
 Everything here is inside a single `UI_HTML` string — no build step, no CDN, no
-web fonts, no images (CSP: `default-src 'none'`). System font stack only.
+web fonts, no images (CSP: `default-src 'none'`). System font stack only. The one
+inline data URI is an SVG favicon (the shield), so the app window and its taskbar
+button carry the dsh-safe icon. The page also pings `api/ping` every 20 seconds:
+that is how the launcher knows the window is still open and can exit after it
+closes.
 
 ---
 
@@ -26,9 +30,9 @@ Preview states: `?state=failed` (default), `running`, `preflight`, `healthy`,
 
 ---
 
-## Revision — light tone, one switch per plugin
+## Revision — light tone, one switch per plugin, one column
 
-Two changes after the first pass, both requested from use:
+Three changes after the first pass, all requested from use:
 
 1. **Light palette.** The page is now white-on-light (`--bg #f4f6f9`), because it
    is read next to the (light) Harness window on a Windows desktop, and a dark
@@ -46,6 +50,11 @@ No confirmation dialog on a switch flip: the snapshot taken immediately before
 the write, plus **Recovery points**, is the safeguard, and the dock names the
 snapshot id so undo is one click away. `Restore` and `Safe mode` keep their
 confirmations — those touch several bundles at once.
+
+3. **One column.** Recovery points moved under the plugin list and recent
+   changes under them, at every width. The rail read as a second, competing
+   column on a 1440 window, and the snapshot you reach for after a bad flip is
+   now directly under the list you flipped.
 
 ---
 
@@ -65,12 +74,13 @@ One question per region, answered top to bottom:
 1. **What broke?** — verdict band: state word, one sentence, one filled button.
 2. **Why?** — boot evidence, a chronology: Raised → Failed → Waiting → Suspects.
 3. **Which switch?** — plugins: filter, one on/off switch per row (plus *Disable this* in the evidence ledger).
-4. **Can I go back?** — recovery points (snapshots) and recent changes, in a rail.
+4. **Can I go back?** — recovery points (snapshots), then recent changes, below the plugin list.
 5. **What did it say?** — output dock, pinned, collapsed until something runs.
 
-The rail is 356px and starts level with the evidence panel, so the eye gets a
-second column only after it has read the reason. `align-items: start` on the
-grid keeps the rail from stretching when the evidence is short.
+Everything below the verdict is one `20px` stack, in source order. There is no
+second column, so a wide window is read the same way as a narrow one: reason,
+switch, undo, history. Because the visual order is the DOM order, Tab follows
+the same path and the evidence never sits beside a panel it is unrelated to.
 
 ## Type scale
 
@@ -205,12 +215,11 @@ Disable ×3 → filter → clear-filter → 14 plugin switches → 2 Enable → 
 
 ## Responsive
 
-- **1440** — `1fr / 356px` rail, evidence in two columns (Raised+Failed | Waiting+Suspects) with a 1px vertical rule, verdict meta on one line, plugin names on one line.
-- **1101–1280** — same, rail narrows with the column.
-- **≤1100** — one column: the rail drops below the plugin list and splits into two panels side by side (Recovery points | Recent changes), so snapshots stay visible without scrolling past them.
+- **1440** — one column: verdict, boot evidence (two columns inside — Raised+Failed | Waiting+Suspects, 1px vertical rule), plugins, recovery points, recent changes. Panels use the full content width; verdict meta on one line, plugin names on one line.
+- **1101–1280** — same stack, panels narrow with the window.
 - **≤900** — header: Refresh / Snapshot now / Test boot fold into an `Actions` menu, page gutter 16px.
 - **≤880** — the evidence ledger stacks; the vertical rule becomes a hairline between stages so the groups still separate.
-- **≤720** — the rail's two panels stack; verdict padding 18/16, panel heads 12/16.
+- **≤720** — verdict padding 18/16, panel heads 12/16.
 - **≤640** — verdict meta wraps to counts-then-filename on its own line, plugin rows grow to `min-height: 56px` with name and badges stacked and the switch kept on the right, failed rows put *Disable this* under the message, the search field takes the full panel head.
 - **390** — single column, 16px gutter, title 20px, snapshots keep Restore inline, dock 46px with a 44px target. No horizontal scrolling.
 

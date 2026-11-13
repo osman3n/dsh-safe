@@ -86,7 +86,7 @@ cd path\to\dsh-safe
 dsh-safe.cmd status              :: where the profile is, what was installed recently
 dsh-safe.cmd plugins             :: numbered bundle list + installed-but-not-selected
 dsh-safe.cmd try                 :: test-boot a copy of the profile in a sandbox (no changes)
-dsh-safe-ui.cmd                  :: recovery page in the browser (also works when the app is down)
+dsh-safe-ui.cmd                  :: recovery page in its own window (also works when the app is down)
 ```
 
 Before you change anything, or right before you try a risky plugin:
@@ -157,8 +157,13 @@ restore is itself undoable.
 ## The recovery UI
 
 `dsh-safe-ui.cmd` (or `dsh-safe.cmd ui`) starts a tiny web server on `127.0.0.1`
-and opens it in your browser. It runs as a normal Node process, so it works while
-the Harness is crashed, hung, or closed.
+and opens it as its own window: title bar, taskbar entry, the page's shield icon,
+no tabs and no address bar — closer to a small program than to a browser tab. It
+runs as a normal Node process, so it works while the Harness is crashed, hung, or
+closed.
+
+Pass `--browser` for a normal browser tab, or `--no-browser` to only serve the
+page and print its URL.
 
 The page opens with a **verdict band**: one sentence naming the failure, a primary
 **Disable `<plugin>`** button, **Test boot**, and a note that a snapshot is taken
@@ -192,12 +197,19 @@ another local page cannot drive it. **Stop this UI** (or Ctrl+C in the terminal)
 ends the server.
 
 **One-click safe reopen:** double-click the *DeepSeek Harness (Safe)* desktop
-shortcut (or run `dsh-safe-open.cmd`). It opens the recovery page immediately,
-even while Harness is running, so you can inspect the profile and choose plugins
-before touching anything. Use the page's **Test boot** button for a sandbox
-preflight, fix what is broken, then click **Launch Harness**; the page shuts
-itself down. `dsh-safe.cmd open` (without `--ui`) keeps the older
-preflight-then-launch behaviour.
+shortcut. It opens the recovery window immediately, even while Harness is
+running, so you can inspect the profile and choose plugins before touching
+anything. Use the page's **Test boot** button for a sandbox preflight, fix what
+is broken, then click **Launch Harness**; the page shuts itself down.
+`dsh-safe.cmd open` (without `--ui`) keeps the older preflight-then-launch
+behaviour.
+
+**No console window.** The shortcut runs `dsh-safe-open.vbs` through `wscript`,
+so nothing flashes on screen. Everything the launcher prints goes to
+`%USERPROFILE%\.dsh\safety\ui.log`. Closing the window stops the server by
+itself: the page pings every 20 seconds, and after two quiet minutes the Node
+process exits. `dsh-safe-open.cmd` still exists for terminal users, where the
+URL and the log write to the console as before.
 
 ## Automatically on crash
 
@@ -268,15 +280,18 @@ Environment overrides: `DSH_HOME`, `DSH_PROFILE` (default `desktop`),
 `DSH_SAFE_DSH` (path to a different `dsh` launcher), `DSH_DESKTOP_EXE` (path to
 `DeepSeek Harness.exe`), `DSH_SAFE_FORCE_TTY=1` (force the picker when input is
 piped, useful for tests), `DSH_SAFE_APP_RUNNING=0|1` (override the "is the app
-running" check the UI uses to block mutations; for tests).
+running" check the UI uses to block mutations; for tests), `DSH_SAFE_UI_IDLE_MS`
+(how long the window mode waits for a ping before stopping the server; default
+`120000`).
 
 ## Wrappers
 
 - `dsh-safe.cmd` — the CLI.
-- `dsh-safe-ui.cmd` — `dsh-safe ui`, opens the recovery page.
-- `dsh-safe-open.cmd` — `dsh-safe open --ui`: opens the recovery page directly
-  (the desktop shortcut points here). `dsh-safe.cmd open` still test-boots the
-  profile and launches Harness when it is healthy.
+- `dsh-safe-ui.cmd` — `dsh-safe ui`, opens the recovery window.
+- `dsh-safe-open.vbs` — the same thing with no console window; the desktop
+  shortcut points here.
+- `dsh-safe-open.cmd` — `dsh-safe open --ui` in a console. `dsh-safe.cmd open`
+  still test-boots the profile and launches Harness when it is healthy.
 
 All work from any directory; they resolve `dsh-safe.mjs` relative to themselves.
 If you want to type `dsh-safe` from anywhere, add the folder that contains
