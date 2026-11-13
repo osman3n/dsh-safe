@@ -1,0 +1,4 @@
+# local scratch from the design verification runs
+design/_chrome-profile/
+design/_verify.html
+node_modules/

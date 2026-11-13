@@ -160,22 +160,26 @@ restore is itself undoable.
 and opens it in your browser. It runs as a normal Node process, so it works while
 the Harness is crashed, hung, or closed.
 
-The page shows:
+The page opens with a **verdict band**: one sentence naming the failure, a primary
+**Disable `<plugin>`** button, **Test boot**, and a note that a snapshot is taken
+before anything changes. Below it:
 
-- **Last startup evidence** — the error line, the failed plugins with their first
-  exception, which plugins waited for services, and the suspect list. Each failed
-  plugin that is a selected bundle gets a one-click **Disable this** button.
+- **Boot evidence** — a ledger with the raised error, the failed plugins (first
+  exception plus a per-row **Disable this**), the plugins that waited for services,
+  and the suspect list (failed plugin first, then newest changes) in a scrollable
+  column.
+- **Recovery points** — the newest 25 snapshots, each with **Restore**. Until a boot
+  has been verified it says so instead of pretending there is a good point.
 - **Plugins** — every selected bundle with a checkbox, a filter box and a `kind`
   badge (core/local/official/third-party). Core bundles are locked. There is also
   an **Enable** button for installed-but-not-selected bundles. The list is sorted
   **newest install or update first**, using the app's plugin-operation log plus the
   `node_modules` timestamps, so the plugin you just added sits near the top.
-- **Snapshots** — the newest 25 snapshots, each with **Restore**.
-- **Recent plugin operations** — what was installed/enabled and when, so you can
-  spot the change that broke the boot.
-- **Test boot** — runs the same isolated preflight as `try`; the result and the
-  failed-plugin list appear in the output panel.
-- **Launch Harness** — starts the app (only when it is not already running).
+- **Activity** — recent plugin operations, so you can spot the change that broke
+  the boot, next to a collapsible **Output** dock that shows what each action did.
+
+The layout collapses to a single column on narrow windows (the header buttons fold
+into **Actions**), so the page also works when the only screen left is a small one.
 
 Mutating buttons are blocked while DeepSeek Harness is running, because the app
 owns `package.json` at boot. The page says so in a banner.
