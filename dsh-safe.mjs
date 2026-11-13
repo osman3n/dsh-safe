@@ -33,7 +33,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { parseArgs } from 'node:util';
 import { pathToFileURL } from 'node:url';
 
-const VERSION = '0.2.7';
+const VERSION = '0.2.8';
 
 const HOME = process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
 const SAFETY_DIR = path.join(HOME, 'safety');
@@ -1983,7 +1983,7 @@ const UI_HTML = String.raw`<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light">
 <title>Harness recovery</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill='%230b3d91' d='M32 4 8 13v18c0 14.6 10.2 24.9 24 29 13.8-4.1 24-14.4 24-29V13L32 4Z'/%3E%3Cpath fill='none' stroke='%23ffffff' stroke-width='6' stroke-linecap='round' stroke-linejoin='round' d='m20 32 8 8 16-17'/%3E%3C/svg%3E">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%20%3Cdefs%3E%20%3ClinearGradient%20id='dsh-safe-blue'%20x1='0'%20y1='0'%20x2='0'%20y2='1'%3E%20%3Cstop%20offset='0'%20stop-color='%232f81f7'/%3E%20%3Cstop%20offset='1'%20stop-color='%230b3d91'/%3E%20%3C/linearGradient%3E%20%3C/defs%3E%20%3Cpath%20fill='%23ffffff'%20stroke='url(%23dsh-safe-blue)'%20stroke-width='4'%20stroke-linejoin='round'%20d='M32%204.5%209.5%2013.2v17.4c0%2014%209.8%2024%2022.5%2027.9%2012.7-3.9%2022.5-13.9%2022.5-27.9V13.2L32%204.5Z'/%3E%20%3Cpath%20d='M21.5%2032.5%2028.5%2039.5%2043%2024.5'%20fill='none'%20stroke='url(%23dsh-safe-blue)'%20stroke-width='5'%20stroke-linecap='round'%20stroke-linejoin='round'/%3E%20%3C/svg%3E">
 
 <style>
 /* =====================================================================

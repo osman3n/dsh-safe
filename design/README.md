@@ -5,7 +5,8 @@ say what failed, and put the switch that fixes it within reach.
 
 Everything here is inside a single `UI_HTML` string — no build step, no CDN, no
 web fonts, no images (CSP: `default-src 'none'`). System font stack only. The one
-inline data URI is an SVG favicon (the shield), so the app window and its taskbar
+inline data URI is an SVG favicon — the same shield as `app.ico`, with the check
+mark because a taskbar draws it at 16–32 px — so the app window and its taskbar
 button carry the dsh-safe icon. The page also pings `api/ping` every 20 seconds:
 that is how the launcher knows the window is still open and can exit after it
 closes.

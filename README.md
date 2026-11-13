@@ -165,6 +165,11 @@ closed.
 Pass `--browser` for a normal browser tab, or `--no-browser` to only serve the
 page and print its URL.
 
+The window, its taskbar button and the desktop shortcut use `app.ico`: a white
+shield with a blue rim and **SAFE** in blue. At 16–32 px the same shield carries
+a check mark instead, because four letters cannot be read that small — Windows
+picks the nearest size on its own.
+
 The page opens with a **verdict band**: one sentence naming the failure, a primary
 **Disable `<plugin>`** button, **Test boot**, and a note that a snapshot is taken
 before anything changes. Below it:
