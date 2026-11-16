@@ -158,18 +158,18 @@ restore is itself undoable.
 ## The recovery UI
 
 `dsh-safe-ui.cmd` (or `dsh-safe.cmd ui`) starts a tiny web server on `127.0.0.1`
-and opens it as its own window: title bar, taskbar entry, the page's shield icon,
-no tabs and no address bar — closer to a small program than to a browser tab. It
-runs as a normal Node process, so it works while the Harness is crashed, hung, or
-closed.
+and opens it as its own window: title bar, taskbar entry, its own icon, no tabs
+and no address bar — closer to a small program than to a browser tab. It runs as
+a normal Node process, so it works while the Harness is crashed, hung, or closed.
 
 Pass `--browser` for a normal browser tab, or `--no-browser` to only serve the
 page and print its URL.
 
-The window, its taskbar button and the desktop shortcut use `app.ico`: a white
-shield with a blue rim and **SAFE** in blue. At 16–32 px the same shield carries
-a check mark instead, because four letters cannot be read that small — Windows
-picks the nearest size on its own.
+The window, its taskbar button and the desktop shortcut use `app.ico`: the
+DeepSeek Harness whale tile with **SAFE** in blue underneath, so the recovery app
+reads as the safe build of the app it repairs. At 16–48 px the word is replaced by
+a solid blue bar in the same place, because four letters blur into a smudge that
+small — Windows picks the nearest size on its own.
 
 Windows will not draw a shortcut icon straight out of this folder: the project
 carries a restrictive ACL and the shell silently falls back to a blank page. So

@@ -1,6 +1,6 @@
 {
   "name": "dsh-safe",
-  "version": "0.2.9",
+  "version": "0.3.0",
   "description": "Recover a DeepSeek Harness profile that no longer boots: test-boot a copy, disable the plugin that broke it, and restore from a snapshot. Ships as both a CLI and an in-harness plugin.",
   "type": "module",
   "license": "MIT",
@@ -12,7 +12,7 @@
     "./cli": "./dsh-safe.mjs",
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./locale/*.json": "./locale/*.json",
-    "./icon": "./icon.svg",
+    "./icon": "./icon.png",
     "./package.json": "./package.json"
   },
   "files": [
@@ -25,7 +25,7 @@
     "locale/en.json",
     "locale/zh.json",
     "app.ico",
-    "icon.svg",
+    "icon.png",
     "cordis.patch.yml",
     "README.md",
     "LICENSE"
