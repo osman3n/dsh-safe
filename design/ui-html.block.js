@@ -502,8 +502,17 @@ main {
 
 /* ============================================================== rail == */
 
-/* every snapshot stays a whole row: the list grows and the page scrolls */
-.rlist { padding: 2px 20px 12px; }
+/* Rows stay whole, but the list itself scrolls, the same way the plugin list
+   does. A real profile can hold two dozen recovery points and twelve recorded
+   changes; unclamped they pushed the page past 2k and the Restore you wanted
+   was a page-scroll away. Six rows plus the next row's top edge is the "there
+   is more" cue; the count in the panel head says how much more.
+   overscroll-behavior: contain keeps the page still when the list bottoms out. */
+.rlist {
+  padding: 2px 20px 12px;
+  max-height: min(46vh, 420px);
+  overflow: auto; overscroll-behavior: contain;
+}
 
 /* Slim scrollbars keep the "there is more below" cue without a bright gutter. */
 .plist::-webkit-scrollbar, .rlist::-webkit-scrollbar, #log::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -746,7 +755,7 @@ body[data-busy="1"] .sw { pointer-events: none; }
 
   <div class="stack">
 
-    <section class="panel" aria-labelledby="ev-title">
+    <section class="panel" id="ev-panel" aria-labelledby="ev-title">
       <div class="panel-head">
         <h2 class="panel-title" id="ev-title">Boot evidence</h2>
         <span class="panel-file mono" id="ev-file"></span>
@@ -828,6 +837,16 @@ body[data-busy="1"] .sw { pointer-events: none; }
 window.__BOOT_STATE__ = __BOOT__;
 (function () {
   'use strict';
+
+  /* Chromium reuses the window's profile directory, so it also restores the last
+     scroll position — the page would open halfway down, past the verdict that is
+     the whole point of it. Always start at the top. */
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  function toTop() { window.scrollTo(0, 0); }
+  toTop();
+  window.addEventListener('pageshow', toTop);
+  window.addEventListener('load', toTop);
+  requestAnimationFrame(function () { toTop(); requestAnimationFrame(toTop); });
 
   var state = window.__BOOT_STATE__ || null;
   var busy = false;
@@ -1040,6 +1059,11 @@ window.__BOOT_STATE__ = __BOOT__;
     var pf = s.preflight;
     var target = failTarget();
     var locked = s.appRunning;
+    /* Only a failure that can be current belongs on the page: the app is down and
+       the newest log is a failed boot, or the test boot just failed. A failure log
+       from an earlier boot on a machine that runs fine is history, not an alarm —
+       showing it made a healthy state look broken. */
+    var currentError = (pf && pf.ok === false) || (!locked && Boolean(ev) && Boolean(failed.length || ev.error));
     var tone = 'good';
     var statusText = 'No startup failure';
     var title = null;
@@ -1058,26 +1082,16 @@ window.__BOOT_STATE__ = __BOOT__;
       } else {
         add(actions, primaryBtn('Test the boot again', 'try'));
       }
-    } else if (ev && (failed.length || ev.error) && locked) {
-      /* The app is up, so a failure log from an earlier boot is history. Say that
-         before saying "Startup failed", or the page reads as if it were down. */
-      var lastAt = ev.at ? new Date(ev.at).toLocaleString() : null;
-      var lastAge = ev.ageMs != null ? ageText(ev.ageMs) : null;
-      tone = 'warn';
-      statusText = 'Last failure';
-      var lastName = target || (failed[0] && (failed[0].pkg || failed[0].id)) || null;
-      title = lastName
-        ? verdictTitle('The last boot failed: ', lastName, ' did not load.')
-        : verdictTitle('The last boot failed.', null, null);
-      lede = (lastAt ? 'That log is from ' + lastAt + ' — ' + (lastAge || 'earlier') + '. ' : (lastAge ? 'That log is ' + lastAge + '. ' : ''))
-        + 'DeepSeek Harness is running now, so this is the most recent recorded failure, not the current state. '
-        + 'Quit the Harness to disable or restore anything from here.';
-      if (target) {
-        add(actions, primaryBtn('Disable ' + target, 'disable-one', { name: target }));
-        actions.lastChild.disabled = true;
-      }
+    } else if (locked) {
+      /* A failure log from an earlier boot is history while the app runs; a
+         healthy state must not look broken. The evidence panel is hidden for the
+         same reason — it appears only when something is wrong right now. */
+      tone = 'good';
+      statusText = 'Running';
+      title = verdictTitle('DeepSeek Harness is running.', null, null);
+      lede = 'Nothing needs recovering right now. Plugin changes stay locked while the app runs — it owns package.json at boot, so an edit made now can be lost on the next launch. '
+        + 'Quit the Harness and this page unlocks by itself.';
       add(actions, primaryBtn('Test boot', 'try'));
-      note = 'Locked: quit DeepSeek Harness first.';
     } else if (ev && (failed.length || ev.error)) {
       tone = 'bad';
       statusText = 'Startup failed';
@@ -1105,13 +1119,6 @@ window.__BOOT_STATE__ = __BOOT__;
         if (locked) actions.lastChild.disabled = true;
       }
       note = locked ? 'Locked: quit DeepSeek Harness first.' : 'A snapshot is taken before anything changes.';
-    } else if (locked) {
-      tone = 'warn';
-      statusText = 'Harness running';
-      title = verdictTitle('DeepSeek Harness is open.', null, null);
-      lede = 'Plugin changes stay locked while it runs: the app owns package.json at boot, so edits made now can be lost on the next launch. '
-        + 'This page re-checks every 3 seconds and unlocks by itself when the Harness quits.';
-      add(actions, primaryBtn('Test boot', 'try'));
     } else if (!ev) {
       tone = 'idle';
       statusText = 'No startup log';
@@ -1139,7 +1146,7 @@ window.__BOOT_STATE__ = __BOOT__;
     badge.appendChild(document.createTextNode(statusText));
     add(top, badge);
 
-    if (ev) {
+    if (ev && currentError) {
       var meta = el('div', 'verdict-meta');
       var file = el('span', 'mono', shortPath(ev.file));
       file.title = ev.file;
@@ -1185,6 +1192,7 @@ window.__BOOT_STATE__ = __BOOT__;
   function renderEvidence() {
     var host = $('evidence-body');
     var file = $('ev-file');
+    var panel = $('ev-panel');
     clear(host);
     file.textContent = '';
 
@@ -1193,6 +1201,16 @@ window.__BOOT_STATE__ = __BOOT__;
       skeleton(host, 3);
       return;
     }
+
+    /* A boot log only exists for boots that died, so on a healthy machine the
+       newest one is history. Show this panel only when that failure can still be
+       the current state — otherwise it is a drawer of stale bad news. */
+    var evNow = state.evidence;
+    var pfNow = state.preflight;
+    var show = Boolean(pfNow && pfNow.ok === false)
+      || Boolean(!state.appRunning && evNow && ((evNow.failed || []).length || evNow.error));
+    if (panel) panel.hidden = !show;
+    if (!show) return;
 
     var ev = state.evidence;
     if (!ev) {
@@ -1549,6 +1567,10 @@ window.__BOOT_STATE__ = __BOOT__;
   function renderAll() {
     var active = document.activeElement;
     var key = active && active.getAttribute ? active.getAttribute('data-key') : null;
+    /* Both lists are rebuilt from scratch below, so a scrolled list would snap
+       back to the top on every refresh. Keep the offset; if the list got
+       shorter the browser clamps it to the new maximum. */
+    var keep = { snapshots: $('snapshots').scrollTop, activity: $('activity').scrollTop };
 
     renderHead();
     renderVerdict();
@@ -1557,6 +1579,9 @@ window.__BOOT_STATE__ = __BOOT__;
     renderSnapshots();
     renderActivity();
     syncActions();
+
+    $('snapshots').scrollTop = keep.snapshots;
+    $('activity').scrollTop = keep.activity;
 
     if (key) restoreFocus(key);
   }

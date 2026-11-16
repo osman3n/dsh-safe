@@ -159,13 +159,13 @@ last known state stays on screen; the bars never replace the page.
 "Locked: quit DeepSeek Harness first.", and `title` repeats the reason. The
 server still refuses; the UI only removes the dead click.
 
-**Last failure** — the Harness writes a startup log only for boots that died, so
-on a healthy machine the newest log can be days old. When the app is running and
-that log predates this session, the band turns amber, the badge reads
-**Last failure**, the title is past tense ("The last boot failed: … did not
-load."), the lede dates the log and says the app is running now, and the only
-action left is **Test boot** (it runs on a copy). The red band is reserved for a
-failure that can still be the current state, i.e. with the app down.
+**Running** — the Harness writes a startup log only for boots that died, so on a
+healthy machine the newest log can be days old. That log is history, not an alarm:
+with the app running the band is green ("DeepSeek Harness is running."), the file
+name and counts are dropped, and the whole **Boot evidence** panel is `hidden` —
+it exists only when the failure can still be the current state (app down with a
+failed boot log, or a test boot that just failed). A healthy profile therefore
+shows three panels: Plugins, Recovery points, Recent changes.
 
 **Busy** — `body[data-busy="1"]` dims actionable buttons, the dock opens, and
 the state label reads `working…`. A second click is dropped by the `busy` guard
@@ -185,7 +185,9 @@ Disable ×3 → filter → clear-filter → 14 plugin switches → 2 Enable → 
   is a `<button role="switch">` with `aria-checked`, so Space and Enter both flip
   it, and the accessible name states the action (*Switch off dsh-pocket*).
 - `renderAll()` captures the focused element's `data-key` before re-rendering
-  and restores it after, so 3s polling cannot throw focus to `<body>`.
+  and restores it after, so 3s polling cannot throw focus to `<body>`. It does
+  the same with `scrollTop` on `#snapshots` and `#activity`, so a poll cannot
+  snap a scrolled list back to the top.
 - The dock is a disclosure with `aria-expanded`; the log is `role="log"` +
   `aria-live="polite"`, `tabindex="0"` so it can be scrolled from the keyboard.
 - The visually hidden per-row label sits inside a `position: relative` cell —
@@ -231,10 +233,30 @@ Disable ×3 → filter → clear-filter → 14 plugin switches → 2 Enable → 
 - **≤640** — verdict meta wraps to counts-then-filename on its own line, plugin rows grow to `min-height: 56px` with name and badges stacked and the switch kept on the right, failed rows put *Disable this* under the message, the search field takes the full panel head.
 - **390** — single column, 16px gutter, title 20px, snapshots keep Restore inline, dock 46px with a 44px target. No horizontal scrolling.
 
-The plugin list is a `min(62vh, 660px)` scroll box (one sticky group head plus
-twelve 48px rows at 1440×900), so the switch you need is reachable without
-scrolling the page. Snapshots are never clamped: every row is whole and every
-Restore is live.
+Browse lists are scroll boxes, in the same idiom all three times: a
+`max-height` of `min(62vh, 660px)` for plugins and `min(46vh, 420px)` for the
+two `rlist` panels, `overflow: auto`, `overscroll-behavior: contain`, and the
+10px slim scrollbar already themed globally. The plugin list shows one sticky
+group head plus twelve 48px rows at 1440×900, so the switch you need is
+reachable without scrolling the page. Recovery points and recent changes show
+six or seven whole rows, with the next row's top edge visible as the "there is
+more" cue and the count in the panel head saying how much more; a real profile
+holds two dozen recovery points and twelve recorded changes, which used to push
+the page past 2k.
+
+No row is clamped to a fixed pixel height: the box scrolls and cuts once, at the
+bottom edge, which is what makes the next row's top edge the "there is more"
+cue. `overscroll-behavior: contain` keeps the page still when a list bottoms
+out, so a list you scrolled does not start scrolling the document. Keyboard
+focus moves the list, not the page: tabbing to a Restore below the fold scrolls
+`#snapshots` (browser default scroll-into-view inside the nearest scroll
+container) and leaves `scrollY` unchanged.
+
+Both lists are rebuilt from scratch on every render, so `renderAll()` captures
+`#snapshots.scrollTop` and `#activity.scrollTop` before the render and restores
+them after it. Without that, the 3s poll or any Refresh snapped a scrolled list
+back to the top; if the list got shorter, the browser clamps the offset to the
+new maximum.
 
 ## Behaviour parity
 
@@ -286,8 +308,14 @@ that is the error bar and the dock being exercised, not a fault.
 
 - All six states rendered and read at 1440; `failed` and `clean` also at 768 and 390.
 - Zero console exceptions from the page itself (only the deliberate `file://` fetch failure).
-- 40 tab stops, all with a visible ring; focus survives a poll-driven re-render.
+- 44 tab stops, all with a visible ring; focus survives a poll-driven re-render.
 - 27 contrast pairs pass under the light palette, worst 4.66:1.
 - Switch end-to-end over CDP (keyboard Space): 36 → 35 bundles, snapshot
   `…-pre-disable-dsh-pocket` written, row moves to available, Space again restores 36.
 - Filter, switch, and the empty-result state exercised.
+- Scroll boxes measured over CDP at 1440×900 with 25 snapshot rows and 16
+  activity rows: `#snapshots` client 414 / scroll 1469, `#activity` client 414 /
+  scroll 945, computed `max-height` 414px from `min(46vh, 420px)`, rows whole at
+  57–58px, no console output. Scroll offset survives a Refresh (140 → 140,
+  100 → 100) and a poll-driven re-render. Tabbing to a Restore below the fold
+  scrolls the list to 184 and leaves `scrollY` at 1057.

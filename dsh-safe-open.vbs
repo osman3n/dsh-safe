@@ -4,12 +4,14 @@
 ' Harness will not start. The page appears in its own window, not a browser
 ' tab, and nothing flashes on screen.
 '
-' Output goes to %USERPROFILE%\.dsh\safety\ui.log so a failure here is still
-' readable afterwards.
+' dsh-safe writes its own log (%USERPROFILE%\.dsh\safety\ui.log), so this script
+' never redirects cmd's output into it: a running instance would hold that handle
+' and the next launch would die before node started.
 
 Option Explicit
 
-Dim shell, fso, here, home, logDir, logFile, command
+Dim shell, fso, here, home, logDir, logFile, command, rc
+
 Set shell = CreateObject("WScript.Shell")
 Set fso = CreateObject("Scripting.FileSystemObject")
 
@@ -19,13 +21,20 @@ home = shell.ExpandEnvironmentStrings("%USERPROFILE%")
 logDir = home & "\.dsh\safety"
 logFile = logDir & "\ui.log"
 
-' Make the log folder first: a failed redirect would stop node from starting.
 On Error Resume Next
 If Not fso.FolderExists(home & "\.dsh") Then fso.CreateFolder home & "\.dsh"
 If Not fso.FolderExists(logDir) Then fso.CreateFolder logDir
 On Error GoTo 0
 
-command = "cmd /c node """ & here & "dsh-safe.mjs"" open --ui >> """ & logFile & """ 2>&1"
+command = "cmd /c node """ & here & "dsh-safe.mjs"" open --ui"
 
 ' 0 = hidden window, False = do not wait for it to finish.
-shell.Run command, 0, False
+On Error Resume Next
+rc = shell.Run(command, 0, False)
+If Err.Number <> 0 Then
+  Dim log
+  Set log = fso.OpenTextFile(logFile, 8, True)
+  log.WriteLine Now & "  [fail] could not start dsh-safe: " & Err.Description
+  log.Close
+End If
+On Error GoTo 0

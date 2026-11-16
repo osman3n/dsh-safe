@@ -33,7 +33,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { parseArgs } from 'node:util';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const VERSION = '0.3.1';
+const VERSION = '0.3.3';
 
 const HOME = process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
 const SAFETY_DIR = path.join(HOME, 'safety');
@@ -1741,6 +1741,8 @@ function openUrl(url) {
 /* A dedicated profile directory keeps the app window out of the user's normal
  * browser session: no tabs, no history, no session restore, its own icon. */
 const UI_WINDOW_DIR = path.join(SAFETY_DIR, 'ui-window');
+const UI_STATE_FILE = path.join(SAFETY_DIR, 'ui.json');
+const UI_LOG = path.join(SAFETY_DIR, 'ui.log');
 
 const APP_BROWSERS = [
   path.join(process.env['PROGRAMFILES(X86)'] || 'C:/Program Files (x86)', 'Microsoft/Edge/Application/msedge.exe'),
@@ -1781,6 +1783,37 @@ function publishIcon() {
 /* Opens the recovery page in a chromeless window of the system browser: a
  * normal title bar, a taskbar entry, no address bar and no tab strip. Falls
  * back to a normal browser tab when no Chromium build is installed. */
+/* A recovery window outlives the server that served it: kill the node side and
+   the page stays on screen, frozen, pointing at a dead port. Chromium then reuses
+   that profile directory and forwards the new URL to the running instance, so the
+   only thing the user sees is the stale page. Close our own windows first — only
+   processes whose user-data-dir is exactly UI_WINDOW_DIR, never the real browser. */
+function closeAppWindows() {
+  const dir = UI_WINDOW_DIR.replace(/'/g, "''");
+  // Kill, then wait until the profile is actually free: a new Edge started while
+  // the old one still holds the profile lock hands its URL to the dying process
+  // and exits, which looks exactly like "the shortcut did nothing".
+  const script = [
+    `$dir = '${dir}'.Replace('/', '\\');`,
+    'for ($i = 0; $i -lt 40; $i++) {',
+    "  $procs = @(Get-CimInstance Win32_Process -Filter \"Name='msedge.exe' or Name='chrome.exe'\"",
+    "    | Where-Object { ($_.CommandLine -replace '/', '\\') -like ('*' + $dir + '*') });",
+    '  if ($procs.Count -eq 0) { break }',
+    '  $procs | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue };',
+    '  Start-Sleep -Milliseconds 150;',
+    '}',
+  ].join(' ');
+  try {
+    spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+      stdio: 'ignore',
+      timeout: 20000,
+      windowsHide: true,
+    });
+  } catch {
+    /* best effort: the spawn below still opens a window */
+  }
+}
+
 function openAppWindow(url, { width = 1180, height = 860 } = {}) {
   publishIcon();
   const browser = appBrowser();
@@ -1790,6 +1823,7 @@ function openAppWindow(url, { width = 1180, height = 860 } = {}) {
   }
   try {
     fs.mkdirSync(UI_WINDOW_DIR, { recursive: true });
+    closeAppWindows();
     spawn(browser, [
       `--app=${url}`,
       `--user-data-dir=${UI_WINDOW_DIR}`,
@@ -1836,18 +1870,41 @@ async function createUiServer(opts, { preflight = null } = {}) {
   return { server, ctx, token, url: `http://127.0.0.1:${actual}/${token}/` };
 }
 
+/* The shortcut runs this with no console, so stdout goes nowhere. Write the lines
+   a person would have seen into ui.log ourselves: letting cmd redirect stdout into
+   that file meant a running instance held the append handle, and every later
+   launch died before node started - the shortcut simply did nothing. */
+function logUi(text) {
+  try {
+    fs.appendFileSync(UI_LOG, `${new Date().toISOString()}  ${text}\n`);
+  } catch {
+    /* a log that cannot be written must never stop the recovery UI */
+  }
+}
+
 /* openMode: 'window' (its own app window), 'browser' (a normal tab), 'none'. */
 async function startUi(opts, { openMode = 'none', preflight = null } = {}) {
+  await stopPreviousUi();
   const { server, ctx, url } = await createUiServer(opts, { preflight });
   line('');
   ok(`recovery UI: ${url}`);
+  logUi(`[ok] recovery UI: ${url}`);
   info(`profile ${profileRef(opts).name}   app ${appRunning() ? 'is running' : 'is not running'}`);
+  logUi(`[info] profile ${profileRef(opts).name}   app ${appRunning() ? 'is running' : 'is not running'}`);
   if (preflight) info(`preflight: ${preflight.ok ? 'healthy' : 'failed'} (${preflight.reason || 'unknown reason'})`);
   if (openMode === 'window') {
-    if (openAppWindow(url)) info('opened in its own window');
+    if (openAppWindow(url)) {
+      info('opened in its own window');
+      logUi('[info] opened in its own window');
+    }
     else warn('no Edge or Chrome found; opened in the default browser');
   } else if (openMode === 'browser') {
     openUrl(url);
+  }
+  try {
+    fs.writeFileSync(UI_STATE_FILE, JSON.stringify({ pid: process.pid, url, at: new Date().toISOString() }, null, 2) + '\n');
+  } catch {
+    /* the page still works without the pointer file */
   }
   line('Keep this window open while you use the page; Ctrl+C (or the Stop button) ends it.');
 
@@ -1867,8 +1924,55 @@ async function startUi(opts, { openMode = 'none', preflight = null } = {}) {
   }
 
   await new Promise((resolve) => server.once('close', resolve));
+  try {
+    const saved = JSON.parse(fs.readFileSync(UI_STATE_FILE, 'utf8'));
+    if (saved && saved.pid === process.pid) fs.rmSync(UI_STATE_FILE, { force: true });
+  } catch {
+    /* nothing recorded, or another instance owns it now */
+  }
   info('recovery UI stopped');
+  logUi('[info] recovery UI stopped');
   return 0;
+}
+
+/* Opening the page twice used to leave the first server (and its window) behind;
+   the new one then had to share the same browser profile. Stop the previous
+   instance first, but only after its own URL answers, so a recycled PID from an
+   old pointer file can never be killed by mistake. */
+async function stopPreviousUi() {
+  let prev;
+  try {
+    prev = JSON.parse(fs.readFileSync(UI_STATE_FILE, 'utf8'));
+  } catch {
+    return;
+  }
+  if (!prev || typeof prev.pid !== 'number' || prev.pid === process.pid || !prev.url) return;
+  const at = Date.parse(prev.at ?? '');
+  if (Number.isFinite(at) && Date.now() - at > 24 * 60 * 60 * 1000) return;
+  const alive = await new Promise((resolve) => {
+    const req = http.get(`${prev.url.replace(/\/$/, '')}/api/ping`, { timeout: 700 }, (res) => {
+      res.resume();
+      resolve(res.statusCode === 200);
+    });
+    req.on('error', () => resolve(false));
+    req.on('timeout', () => { req.destroy(); resolve(false); });
+  });
+  if (!alive) return;
+  try {
+    process.kill(prev.pid);
+    info(`stopped the previous recovery UI (pid ${prev.pid})`);
+    logUi(`[info] stopped the previous recovery UI (pid ${prev.pid})`);
+  } catch {
+    return;
+  }
+  for (let i = 0; i < 20; i += 1) {
+    await new Promise((r) => setTimeout(r, 100));
+    try {
+      process.kill(prev.pid, 0);
+    } catch {
+      break;
+    }
+  }
 }
 
 /* ------------------------------------------------------------ crash watcher */
@@ -2504,8 +2608,17 @@ main {
 
 /* ============================================================== rail == */
 
-/* every snapshot stays a whole row: the list grows and the page scrolls */
-.rlist { padding: 2px 20px 12px; }
+/* Rows stay whole, but the list itself scrolls, the same way the plugin list
+   does. A real profile can hold two dozen recovery points and twelve recorded
+   changes; unclamped they pushed the page past 2k and the Restore you wanted
+   was a page-scroll away. Six rows plus the next row's top edge is the "there
+   is more" cue; the count in the panel head says how much more.
+   overscroll-behavior: contain keeps the page still when the list bottoms out. */
+.rlist {
+  padding: 2px 20px 12px;
+  max-height: min(46vh, 420px);
+  overflow: auto; overscroll-behavior: contain;
+}
 
 /* Slim scrollbars keep the "there is more below" cue without a bright gutter. */
 .plist::-webkit-scrollbar, .rlist::-webkit-scrollbar, #log::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -2748,7 +2861,7 @@ body[data-busy="1"] .sw { pointer-events: none; }
 
   <div class="stack">
 
-    <section class="panel" aria-labelledby="ev-title">
+    <section class="panel" id="ev-panel" aria-labelledby="ev-title">
       <div class="panel-head">
         <h2 class="panel-title" id="ev-title">Boot evidence</h2>
         <span class="panel-file mono" id="ev-file"></span>
@@ -2830,6 +2943,16 @@ body[data-busy="1"] .sw { pointer-events: none; }
 window.__BOOT_STATE__ = __BOOT__;
 (function () {
   'use strict';
+
+  /* Chromium reuses the window's profile directory, so it also restores the last
+     scroll position — the page would open halfway down, past the verdict that is
+     the whole point of it. Always start at the top. */
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  function toTop() { window.scrollTo(0, 0); }
+  toTop();
+  window.addEventListener('pageshow', toTop);
+  window.addEventListener('load', toTop);
+  requestAnimationFrame(function () { toTop(); requestAnimationFrame(toTop); });
 
   var state = window.__BOOT_STATE__ || null;
   var busy = false;
@@ -3042,6 +3165,11 @@ window.__BOOT_STATE__ = __BOOT__;
     var pf = s.preflight;
     var target = failTarget();
     var locked = s.appRunning;
+    /* Only a failure that can be current belongs on the page: the app is down and
+       the newest log is a failed boot, or the test boot just failed. A failure log
+       from an earlier boot on a machine that runs fine is history, not an alarm —
+       showing it made a healthy state look broken. */
+    var currentError = (pf && pf.ok === false) || (!locked && Boolean(ev) && Boolean(failed.length || ev.error));
     var tone = 'good';
     var statusText = 'No startup failure';
     var title = null;
@@ -3060,26 +3188,16 @@ window.__BOOT_STATE__ = __BOOT__;
       } else {
         add(actions, primaryBtn('Test the boot again', 'try'));
       }
-    } else if (ev && (failed.length || ev.error) && locked) {
-      /* The app is up, so a failure log from an earlier boot is history. Say that
-         before saying "Startup failed", or the page reads as if it were down. */
-      var lastAt = ev.at ? new Date(ev.at).toLocaleString() : null;
-      var lastAge = ev.ageMs != null ? ageText(ev.ageMs) : null;
-      tone = 'warn';
-      statusText = 'Last failure';
-      var lastName = target || (failed[0] && (failed[0].pkg || failed[0].id)) || null;
-      title = lastName
-        ? verdictTitle('The last boot failed: ', lastName, ' did not load.')
-        : verdictTitle('The last boot failed.', null, null);
-      lede = (lastAt ? 'That log is from ' + lastAt + ' — ' + (lastAge || 'earlier') + '. ' : (lastAge ? 'That log is ' + lastAge + '. ' : ''))
-        + 'DeepSeek Harness is running now, so this is the most recent recorded failure, not the current state. '
-        + 'Quit the Harness to disable or restore anything from here.';
-      if (target) {
-        add(actions, primaryBtn('Disable ' + target, 'disable-one', { name: target }));
-        actions.lastChild.disabled = true;
-      }
+    } else if (locked) {
+      /* A failure log from an earlier boot is history while the app runs; a
+         healthy state must not look broken. The evidence panel is hidden for the
+         same reason — it appears only when something is wrong right now. */
+      tone = 'good';
+      statusText = 'Running';
+      title = verdictTitle('DeepSeek Harness is running.', null, null);
+      lede = 'Nothing needs recovering right now. Plugin changes stay locked while the app runs — it owns package.json at boot, so an edit made now can be lost on the next launch. '
+        + 'Quit the Harness and this page unlocks by itself.';
       add(actions, primaryBtn('Test boot', 'try'));
-      note = 'Locked: quit DeepSeek Harness first.';
     } else if (ev && (failed.length || ev.error)) {
       tone = 'bad';
       statusText = 'Startup failed';
@@ -3107,13 +3225,6 @@ window.__BOOT_STATE__ = __BOOT__;
         if (locked) actions.lastChild.disabled = true;
       }
       note = locked ? 'Locked: quit DeepSeek Harness first.' : 'A snapshot is taken before anything changes.';
-    } else if (locked) {
-      tone = 'warn';
-      statusText = 'Harness running';
-      title = verdictTitle('DeepSeek Harness is open.', null, null);
-      lede = 'Plugin changes stay locked while it runs: the app owns package.json at boot, so edits made now can be lost on the next launch. '
-        + 'This page re-checks every 3 seconds and unlocks by itself when the Harness quits.';
-      add(actions, primaryBtn('Test boot', 'try'));
     } else if (!ev) {
       tone = 'idle';
       statusText = 'No startup log';
@@ -3141,7 +3252,7 @@ window.__BOOT_STATE__ = __BOOT__;
     badge.appendChild(document.createTextNode(statusText));
     add(top, badge);
 
-    if (ev) {
+    if (ev && currentError) {
       var meta = el('div', 'verdict-meta');
       var file = el('span', 'mono', shortPath(ev.file));
       file.title = ev.file;
@@ -3187,6 +3298,7 @@ window.__BOOT_STATE__ = __BOOT__;
   function renderEvidence() {
     var host = $('evidence-body');
     var file = $('ev-file');
+    var panel = $('ev-panel');
     clear(host);
     file.textContent = '';
 
@@ -3195,6 +3307,16 @@ window.__BOOT_STATE__ = __BOOT__;
       skeleton(host, 3);
       return;
     }
+
+    /* A boot log only exists for boots that died, so on a healthy machine the
+       newest one is history. Show this panel only when that failure can still be
+       the current state — otherwise it is a drawer of stale bad news. */
+    var evNow = state.evidence;
+    var pfNow = state.preflight;
+    var show = Boolean(pfNow && pfNow.ok === false)
+      || Boolean(!state.appRunning && evNow && ((evNow.failed || []).length || evNow.error));
+    if (panel) panel.hidden = !show;
+    if (!show) return;
 
     var ev = state.evidence;
     if (!ev) {
@@ -3551,6 +3673,10 @@ window.__BOOT_STATE__ = __BOOT__;
   function renderAll() {
     var active = document.activeElement;
     var key = active && active.getAttribute ? active.getAttribute('data-key') : null;
+    /* Both lists are rebuilt from scratch below, so a scrolled list would snap
+       back to the top on every refresh. Keep the offset; if the list got
+       shorter the browser clamps it to the new maximum. */
+    var keep = { snapshots: $('snapshots').scrollTop, activity: $('activity').scrollTop };
 
     renderHead();
     renderVerdict();
@@ -3559,6 +3685,9 @@ window.__BOOT_STATE__ = __BOOT__;
     renderSnapshots();
     renderActivity();
     syncActions();
+
+    $('snapshots').scrollTop = keep.snapshots;
+    $('activity').scrollTop = keep.activity;
 
     if (key) restoreFocus(key);
   }
@@ -3784,6 +3913,7 @@ window.__BOOT_STATE__ = __BOOT__;
 </body>
 </html>
 `;
+
 
 /* ----------------------------------------------------------------------- main */
 
