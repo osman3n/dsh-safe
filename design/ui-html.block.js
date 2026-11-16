@@ -890,6 +890,19 @@ window.__BOOT_STATE__ = __BOOT__;
     return n + ' ' + (n === 1 ? one : (many || one + 's'));
   }
 
+  /* How old the newest startup log is. A failure log only exists for boots that
+     died, so on a machine that runs fine today the newest one can be days old —
+     the verdict has to say so instead of implying the app is down right now. */
+  function ageText(ms) {
+    var secs = Math.floor(Math.max(0, ms) / 1000);
+    if (secs < 90) return 'just now';
+    var mins = Math.floor(secs / 60);
+    if (mins < 60) return plural(mins, 'minute') + ' ago';
+    var hours = Math.floor(mins / 60);
+    if (hours < 36) return plural(hours, 'hour') + ' ago';
+    return plural(Math.floor(hours / 24), 'day') + ' ago';
+  }
+
   /* server copy, shortened for a 200px column. Each branch matches an exact
      prefix the daemon writes; anything unrecognised is shown verbatim, and the
      full string always stays in the row title. */
@@ -1045,6 +1058,26 @@ window.__BOOT_STATE__ = __BOOT__;
       } else {
         add(actions, primaryBtn('Test the boot again', 'try'));
       }
+    } else if (ev && (failed.length || ev.error) && locked) {
+      /* The app is up, so a failure log from an earlier boot is history. Say that
+         before saying "Startup failed", or the page reads as if it were down. */
+      var lastAt = ev.at ? new Date(ev.at).toLocaleString() : null;
+      var lastAge = ev.ageMs != null ? ageText(ev.ageMs) : null;
+      tone = 'warn';
+      statusText = 'Last failure';
+      var lastName = target || (failed[0] && (failed[0].pkg || failed[0].id)) || null;
+      title = lastName
+        ? verdictTitle('The last boot failed: ', lastName, ' did not load.')
+        : verdictTitle('The last boot failed.', null, null);
+      lede = (lastAt ? 'That log is from ' + lastAt + ' — ' + (lastAge || 'earlier') + '. ' : (lastAge ? 'That log is ' + lastAge + '. ' : ''))
+        + 'DeepSeek Harness is running now, so this is the most recent recorded failure, not the current state. '
+        + 'Quit the Harness to disable or restore anything from here.';
+      if (target) {
+        add(actions, primaryBtn('Disable ' + target, 'disable-one', { name: target }));
+        actions.lastChild.disabled = true;
+      }
+      add(actions, primaryBtn('Test boot', 'try'));
+      note = 'Locked: quit DeepSeek Harness first.';
     } else if (ev && (failed.length || ev.error)) {
       tone = 'bad';
       statusText = 'Startup failed';
@@ -1172,7 +1205,8 @@ window.__BOOT_STATE__ = __BOOT__;
       return;
     }
 
-    file.textContent = shortPath(ev.file);
+    file.textContent = shortPath(ev.file)
+      + (ev.ageMs != null ? '  ·  ' + ageText(ev.ageMs) : '');
     file.title = ev.file;
 
     var failed = ev.failed || [];

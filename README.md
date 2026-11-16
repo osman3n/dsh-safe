@@ -180,7 +180,10 @@ package if the taskbar icon ever goes blank.
 
 The page opens with a **verdict band**: one sentence naming the failure, a primary
 **Disable `<plugin>`** button, **Test boot**, and a note that a snapshot is taken
-before anything changes. Below it:
+before anything changes. The Harness only writes a startup log when a boot *fails*,
+so the newest log can be days old on a machine that starts fine today; when the app
+is running and the log is older than the session, the band says **Last failure**,
+dates the log and stops short of claiming the app is down. Below it:
 
 - **Boot evidence** — a ledger with the raised error, the failed plugins (first
   exception plus a per-row **Disable this**), the plugins that waited for services,

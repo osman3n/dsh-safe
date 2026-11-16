@@ -159,6 +159,14 @@ last known state stays on screen; the bars never replace the page.
 "Locked: quit DeepSeek Harness first.", and `title` repeats the reason. The
 server still refuses; the UI only removes the dead click.
 
+**Last failure** — the Harness writes a startup log only for boots that died, so
+on a healthy machine the newest log can be days old. When the app is running and
+that log predates this session, the band turns amber, the badge reads
+**Last failure**, the title is past tense ("The last boot failed: … did not
+load."), the lede dates the log and says the app is running now, and the only
+action left is **Test boot** (it runs on a copy). The red band is reserved for a
+failure that can still be the current state, i.e. with the app down.
+
 **Busy** — `body[data-busy="1"]` dims actionable buttons, the dock opens, and
 the state label reads `working…`. A second click is dropped by the `busy` guard
 before it reaches `fetch`.
