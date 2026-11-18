@@ -28,8 +28,8 @@ caused it, and one switch per plugin.
 ![Recovery window after a failed boot](docs/window-failed.png)
 
 A failed boot: the verdict names the plugin, **Boot evidence** shows the raised
-exception and the plugins that failed or waited for a service, and the recovery
-points rail sits under the plugin list.
+exception and the plugins that failed or waited for a service, and the plugin
+switches and recovery points sit underneath, newest change first.
 
 ![Recovery window while the Harness is running](docs/window-running.png)
 
