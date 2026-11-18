@@ -1,5 +1,7 @@
 ![dsh-safe — a safety net for DeepSeek Harness plugins](docs/hero.png)
 
+**English** · [简体中文](README.zh-CN.md)
+
 A plugin can stop DeepSeek Harness from opening. `dsh-safe` is the tool that
 gets you out: it runs **outside** the app, shows what actually failed, and lets
 you switch off **one** plugin instead of all of them.
